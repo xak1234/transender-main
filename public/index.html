@@ -2591,8 +2591,8 @@
                     this.x = x * canvas.width / 800;
                     this.y = y * canvas.height / 600;
                     this.radius = 15 * (canvas.width / 800);
-                    this.vy = 0;
-                    this.vx = 0;
+                    this.vy = 1; // Start with some downward velocity for faster gameplay
+                    this.vx = (Math.random() - 0.5) * 2; // Random horizontal velocity for more action
                     this.onPusher = false;
                     this.glowTime = 0;
                     this.hasParachute = false;
@@ -2715,19 +2715,19 @@
                         }
                     }
                     
-                    this.vy += (this.hasParachute && superParachuteTimer > 0) ? 0.005 : this.hasParachute ? 0.01 : 0.22;
+                    this.vy += (this.hasParachute && superParachuteTimer > 0) ? 0.01 : this.hasParachute ? 0.02 : 0.35; // Increased gravity for faster balls
                     if (this.hasParachute) {
                         this.vx += Math.sin(Date.now() / 100) * 0.05;
                     }
-                    // Add random speed variations for chaos
-                    if (Math.random() < 0.1) {
-                        this.vx += (Math.random() - 0.5) * 2;
-                        this.vy += (Math.random() - 0.5) * 2;
+                    // Add random speed variations for chaos (increased frequency and intensity)
+                    if (Math.random() < 0.15) { // More frequent speed variations
+                        this.vx += (Math.random() - 0.5) * 3; // Higher intensity
+                        this.vy += (Math.random() - 0.5) * 3;
                     }
                     
-                    // Apply velocity damping to prevent erratic movement
-                    this.vx *= 0.98;
-                    this.vy *= 0.98;
+                    // Apply velocity damping to prevent erratic movement (reduced for faster gameplay)
+                    this.vx *= 0.995; // Less damping for faster movement
+                    this.vy *= 0.995;
                     
                     this.y += this.vy * (canvas.height / 600);
                     this.x += this.vx * (canvas.width / 800);
