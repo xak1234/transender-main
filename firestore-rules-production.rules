@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Leaderboard collection rules
+    match /leaderboard/{document} {
+      // Allow reading leaderboard data (public)
+      allow read: if true;
+      
+      // Only allow authenticated users to write scores
+      allow create: if request.auth != null 
+        && request.resource.data.username is string
+        && request.resource.data.score is number
+        && request.resource.data.score > 0
+        && request.resource.data.username.size() > 0
+        && request.resource.data.username.size() <= 50;
+      
+      // Allow updates only by the original user or admin
+      allow update: if request.auth != null 
+        && (request.auth.uid == resource.data.userId || request.auth.token.admin == true);
+      
+      // Allow deletion only by admin
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Block access to all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HELLSPIN 666 v4 - Pusher Combo Mode</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body { 
+      background: #000; 
+      color: crimson; 
+      font-family: monospace; 
+      width: 100vw;
+      height: 100vh;
+      overflow: auto;
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      padding: 10px; 
+    }
+    
+    h1 { 
+      text-shadow: 0 0 10px red; 
+      margin: 5px 0;
+      font-size: 1.5rem;
+    }
+    
+    #spin-btn { 
+      margin: 5px; 
+      padding: 8px 20px; 
+      background: #900; 
+      border: none; 
+      color: white; 
+      font-size: 14px; 
+      border-radius: 5px; 
+      cursor: pointer; 
+      box-shadow: 0 0 10px red; 
+    }
+    
+    .slot-machine { 
+      display: flex; 
+      gap: 5px; 
+      margin-bottom: 5px; 
+    }
+    
+    .reel { 
+      width: 50px; 
+      height: 80px; 
+      border: 2px solid red; 
+      border-radius: 5px; 
+      background: #111; 
+      overflow: hidden; 
+      position: relative; 
+      box-shadow: inset 0 0 10px red; 
+      cursor: pointer; 
+    }
+    
+    .symbols { 
+      position: absolute; 
+      top: 0; 
+      transition: top 0.4s ease-out; 
+    }
+    
+    .symbol { 
+      height: 80px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 24px; 
+      color: #f55; 
+    }
+    
+    .drop-machine { 
+      position: relative; 
+      width: 400px; 
+      height: 350px; 
+      background: #111; 
+      border: 3px solid #600; 
+      border-radius: 10px; 
+      box-shadow: inset 0 0 20px red; 
+      overflow: hidden; 
+    }
+    
+    .peg { 
+      position: absolute; 
+      width: 8px; 
+      height: 8px; 
+      background: crimson; 
+      border-radius: 50%; 
+      box-shadow: 0 0 5px red; 
+    }
+    
+    .coin { 
+      position: absolute; 
+      width: 25px; 
+      height: 25px; 
+      border-radius: 50%; 
+      font-size: 12px; 
+      font-weight: bold; 
+      text-align: center; 
+      line-height: 25px; 
+      box-shadow: 0 0 6px #0008; 
+      z-index: 5; 
+      color: #000; 
+      transition: transform 0.3s ease; 
+    }
+    
+    .coin.flash { 
+      animation: flash 0.3s ease-in-out alternate 2; 
+    }
+    
+    .coin.combo { 
+      box-shadow: 0 0 10px lime; 
+      border: 1px solid lime; 
+    }
+    
+    .coin.static { 
+      top: 300px !important; 
+    }
+    
+    @keyframes flash { 
+      from { transform: scale(1); } 
+      to { transform: scale(1.2); } 
+    }
+    
+    .c10p { background: #999; }
+    .c20p { background: #bbb; }
+    .c50p { background: #ccc; }
+    .c1p { background: #f6c14b; }
+    .c2p { background: #c49a35; }
+    .c5p { background: #a00; color: #fff; }
+    
+    #shelf { 
+      position: absolute; 
+      left: 0; 
+      width: 100%; 
+      height: 12px; 
+      background: #662222; 
+      bottom: 30px; 
+      box-shadow: 0 0 8px #f00; 
+    }
+    
+    .info, .win-banner, .cash-counter { 
+      color: #ccc; 
+      font-size: 12px; 
+      margin: 2px 0; 
+      max-width: 400px; 
+      text-align: center; 
+    }
+    
+    .win-banner { 
+      color: gold; 
+      font-size: 14px; 
+      text-shadow: 0 0 10px #f00; 
+    }
+    
+    .cash-counter { 
+      color: #0f0; 
+      font-weight: bold; 
+    }
+  </style>
+</head>
+<body>
+  <h1>HELLSPIN 666 – v4 Pusher Combo Mode</h1>
+  <div class="info" id="patternInfo">💡 Win rules: 3 identical OR any 2+2 combo (e.g. 💀💀🍒🍒)</div>
+  <button id="spin-btn">SPIN TO SUFFER</button>
+  <div class="slot-machine" id="machine"></div>
+  <div class="info" id="spinMap"></div>
+  <div class="win-banner" id="winBanner"></div>
+  <div class="cash-counter" id="cashCounter">💷 Cash Wins: £0</div>
+  <div class="drop-machine" id="dropZone">
+    <div id="shelf"></div>
+  </div>
+
+  <script>
+    const REEL_ICONS = ['💀', '🍒', '🔪', '🍋', '☠️', '🍇', '🧛‍♂️', '🍎'];
+    const COINS = ['10p', '20p', '50p', '£1', '£2', '£5'];
+    const COIN_CLASS = {'10p':'c10p','20p':'c20p','50p':'c50p','£1':'c1p','£2':'c2p','£5':'c5p'};
+    const PATTERNS = [
+      { name: 'Three of a kind', test: symCnt => Object.values(symCnt).some(c => c >= 3), coins: symCnt => Math.max(...Object.values(symCnt)) },
+      { name: '2+2 combo', test: symCnt => Object.values(symCnt).filter(c => c === 2).length >= 2, coins: () => 4 }
+    ];
+
+    const machine = document.getElementById('machine');
+    const dropZone = document.getElementById('dropZone');
+    const winBanner = document.getElementById('winBanner');
+    const cashCounter = document.getElementById('cashCounter');
+    const spinMap = document.getElementById('spinMap');
+    const shelf = document.getElementById('shelf');
+
+    const reels = [];
+    let cash = 0;
+
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 9; c++) {
+        const peg = document.createElement('div');
+        peg.className = 'peg';
+        const offset = (r % 2) * 20;
+        peg.style.left = `${c * 40 + offset + 20}px`;
+        peg.style.top = `${r * 35 + 30}px`;
+        dropZone.appendChild(peg);
+      }
+    }
+
+    for (let i = 0; i < 6; i++) {
+      const reel = document.createElement('div');
+      reel.className = 'reel';
+      const symbolsDiv = document.createElement('div');
+      symbolsDiv.className = 'symbols';
+      reel.appendChild(symbolsDiv);
+      machine.appendChild(reel);
+      reels.push(symbolsDiv);
+      reel.addEventListener('click', () => dropCoin(i * 60 + 50, randomCoin()));
+    }
+
+    function randomCoin() {
+      return COINS[Math.floor(Math.random() * COINS.length)];
+    }
+
+    function coinElement(label) {
+      const div = document.createElement('div');
+      div.className = `coin ${COIN_CLASS[label] || ''}`;
+      div.textContent = label;
+      return div;
+    }
+
+    function fillBase() {
+      for (let i = 0; i < 14; i++) {
+        const coin = coinElement(randomCoin());
+        coin.classList.add('static');
+        coin.style.left = `${30 + i * 28}px`;
+        coin.style.top = '300px';
+        dropZone.appendChild(coin);
+      }
+    }
+
+    function spin() {
+      winBanner.textContent = '';
+      spinMap.textContent = '';
+      const tops = [];
+      reels.forEach((symDiv, i) => {
+        const shuffle = [...REEL_ICONS].sort(() => Math.random() - 0.5);
+        symDiv.innerHTML = shuffle.map(ic => `<div class="symbol">${ic}</div>`).join('');
+        const stop = Math.floor(Math.random() * REEL_ICONS.length);
+        symDiv.style.top = `-${stop * 120}px`;
+        tops[i] = shuffle[stop];
+      });
+      setTimeout(() => evaluate(tops), 450);
+    }
+
+    function evaluate(symbols) {
+      spinMap.textContent = 'Spin result: ' + symbols.join(' ');
+      const counts = {};
+      symbols.forEach(s => counts[s] = (counts[s] || 0) + 1);
+      for (const p of PATTERNS) {
+        if (p.test(counts)) {
+                  const drop = p.coins(counts);
+        winBanner.textContent = `🎉 WIN (${p.name}) → ${drop} coin${drop > 1 ? 's' : ''}`;
+        for (let i = 0; i < drop; i++) {
+          const idx = i % symbols.length;
+          setTimeout(() => dropCoin(idx * 60 + 50, randomCoin(), true), i * 120);
+        }
+          return;
+        }
+      }
+      winBanner.textContent = '💀 No win.';
+    }
+
+    function dropCoin(x, label, isCombo = false) {
+      const coin = coinElement(label);
+      if (isCombo) coin.classList.add('combo');
+      coin.style.left = `${x}px`;
+      coin.style.top = '0px';
+      dropZone.appendChild(coin);
+
+      let cx = x, cy = 0, vy = 11, sway = (Math.random() * 3 + 1) * (Math.random() > 0.5 ? 1 : -1);
+      function fall() {
+        cy += vy; cx += Math.sin(cy / 10) * sway;
+        coin.style.top = `${cy}px`;
+        coin.style.left = `${cx}px`;
+        if (cy < 285) requestAnimationFrame(fall);
+        else {
+          coin.style.top = '285px';
+          pushCoins(coin);
+        }
+      }
+      fall();
+    }
+
+    function pushCoins(active) {
+              const coins = [...dropZone.querySelectorAll('.coin')].filter(c => c !== active);
+        const ax = parseFloat(active.style.left);
+        coins.forEach(c => {
+          const ox = parseFloat(c.style.left);
+          if (Math.abs(ax - ox) < 28) {
+            const newX = ox + (ax > ox ? -12 : 12);
+            c.style.left = `${newX}px`;
+            if (newX > 370 || newX < -5) {
+            c.classList.add('flash');
+            setTimeout(() => c.remove(), 200);
+            cash++;
+            cashCounter.textContent = `💷 Cash Wins: £${cash}`;
+          }
+        }
+      });
+    }
+
+    let dir = 1;
+    setInterval(() => {
+      const pushing = dir === 1;
+      shelf.style.bottom = pushing ? '45px' : '30px';
+      if (pushing) {
+        const coins = [...dropZone.querySelectorAll('.coin')];
+        let fallCount = 0;
+        coins.forEach((coin, i) => {
+          const top = parseFloat(coin.style.top);
+          if (top >= 280 && top <= 305) {
+            let step = 0;
+            const maxPush = 20, speed = 1.5 + Math.random(), originalLeft = parseFloat(coin.style.left);
+            function animatePush() {
+              if (step < maxPush) {
+                step += speed;
+                const newLeft = originalLeft + step;
+                coin.style.left = `${newLeft}px`;
+                if (newLeft > 370 || newLeft < -5) {
+                  coin.classList.add('flash');
+                  setTimeout(() => coin.remove(), 200);
+                  fallCount++;
+                  cash += fallCount >= 3 ? 2 : 1;
+                  cashCounter.textContent = `💷 Cash Wins: £${cash}`;
+                  return;
+                }
+                requestAnimationFrame(animatePush);
+              }
+            }
+            setTimeout(() => requestAnimationFrame(animatePush), i * 40);
+          }
+        });
+      }
+      dir *= -1;
+    }, 2000);
+
+    document.getElementById('spin-btn').onclick = spin;
+    spin();
+    fillBase();
+  </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TransEnder</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+    }
+
+    .intro-screen {
+      width: 100%;
+      height: 100vh;
+      background: url('transendback.jpg') center center/contain no-repeat;
+      background-color: #000;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .leaderboard-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 300px;
+      max-height: 400px;
+      overflow-y: auto;
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .leaderboard-title {
+      text-align: center;
+      margin-bottom: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #ffd700;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+
+    .leaderboard-list {
+      list-style: none;
+    }
+
+    .leaderboard-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .rank {
+      font-weight: bold;
+      color: #ffd700;
+      min-width: 30px;
+    }
+
+    .player-name {
+      flex: 1;
+      margin: 0 10px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .score {
+      font-weight: bold;
+      color: #00ff00;
+    }
+
+    .click-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 25px;
+      font-size: 16px;
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+      50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+    }
+
+    @media (max-width: 768px) {
+      .leaderboard-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        max-height: 200px;
+      }
+      
+      .click-hint {
+        bottom: 20px;
+        font-size: 14px;
+        padding: 12px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="intro-screen" onclick="window.location.href='transender.html'">
+    <div class="leaderboard-container">
+      <div class="leaderboard-title">🏆 Top 10 Players</div>
+      <ul class="leaderboard-list" id="leaderboardList">
+        <li class="leaderboard-item">
+          <span class="rank">1.</span>
+          <span class="player-name">Loading...</span>
+          <span class="score">0</span>
+        </li>
+      </ul>
+    </div>
+    <div class="click-hint">Click anywhere to play!</div>
+  </div>
+
+  <script>
+    // Load leaderboard on page load
+    async function loadLeaderboard() {
+      try {
+        const response = await fetch('/api/leaderboard');
+        const scores = await response.json();
+        
+        const leaderboardList = document.getElementById('leaderboardList');
+        leaderboardList.innerHTML = '';
+        
+        if (scores.length === 0) {
+          leaderboardList.innerHTML = '<li class="leaderboard-item"><span class="player-name">No scores yet</span></li>';
+          return;
+        }
+        
+        scores.forEach((score, index) => {
+          const item = document.createElement('li');
+          item.className = 'leaderboard-item';
+          item.innerHTML = `
+            <span class="rank">${index + 1}.</span>
+            <span class="player-name">${score.username}</span>
+            <span class="score">${score.score}</span>
+          `;
+          leaderboardList.appendChild(item);
+        });
+      } catch (error) {
+        console.error('Error loading leaderboard:', error);
+        const leaderboardList = document.getElementById('leaderboardList');
+        leaderboardList.innerHTML = '<li class="leaderboard-item"><span class="player-name">Error loading scores</span></li>';
+      }
+    }
+
+    // Load leaderboard when page loads
+    document.addEventListener('DOMContentLoaded', loadLeaderboard);
+  </script>
+</body>
+</html>

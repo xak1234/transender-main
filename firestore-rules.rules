@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Leaderboard collection rules
+    match /leaderboard/{document} {
+      // Allow reading leaderboard data (public)
+      allow read: if true;
+      
+      // Allow writing scores (public for now, can be restricted later)
+      allow write: if true;
+      
+      // Alternative: Only allow authenticated users to write
+      // allow write: if request.auth != null;
+    }
+    
+    // Block access to all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

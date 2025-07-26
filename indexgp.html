@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hellspin 666 V4.5</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      background: #111;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    canvas {
+      border: 2px solid #ff4500;
+      box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
+      touch-action: manipulation;
+      max-width: 95vw;
+      max-height: 95vh;
+      width: auto;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const maxWidth = Math.min(window.innerWidth * 0.9, 1000);
+      const maxHeight = Math.min(window.innerHeight * 0.9, 700);
+      
+      canvas.width = maxWidth * dpr;
+      canvas.height = maxHeight * dpr;
+      canvas.style.width = maxWidth + 'px';
+      canvas.style.height = maxHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let coins = [];
+    let particles = [];
+    let obstacles = [];
+    const pusher = { x: 250, y: 100, width: 300, height: 50, speed: 6, direction: 1 };
+    let edgeY = 500;
+    const winZone = { x: 350, width: 100, direction: 1, speed: 1 };
+    let score = 0;
+    let coinCount = 100;
+
+    const sfx = {
+      win: new Audio('win.mp3'),
+      thud: new Audio('thud.mp3'),
+      noCoins: new Audio('no-coins.mp3')
+    };
+
+    class Obstacle {
+      constructor() {
+        this.x = Math.random() * (canvas.width - 100);
+        this.y = canvas.height * 0.4 + Math.random() * canvas.height * 0.4;
+        this.width = 40;
+        this.height = 20;
+        this.vx = (Math.random() > 0.5 ? 1 : -1) * 2;
+      }
+
+      update() {
+        this.x += this.vx;
+        if (this.x <= 0 || this.x + this.width >= canvas.width) {
+          this.vx *= -1;
+        }
+      }
+
+      draw() {
+        ctx.fillStyle = '#ff4444';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
+    }
+
+    class Particle {
+      constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.size = type === 'spark' ? Math.random() * 2 + 1 : Math.random() * 5 + 2;
+        this.vx = (Math.random() - 0.5) * 4;
+        this.vy = (Math.random() - 0.5) * 4;
+        this.life = type === 'spark' ? 15 : 30;
+        this.color = type === 'spark' ? '#ffffff' : type === 'knockback' ? '#ffa500' : `hsl(${Math.random() * 60}, 100%, 50%)`;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.1;
+        this.size *= 0.95;
+        this.life--;
+        return this.life <= 0;
+      }
+    }
+
+    class Coin {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 15;
+        this.vy = 0;
+        this.vx = 0;
+        this.onPusher = false;
+        this.glowTime = 0;
+        this.parachute = false;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(this.x - 5, this.y - 5, 2, this.x, this.y, this.radius);
+        gradient.addColorStop(0, '#ff0000');
+        gradient.addColorStop(1, '#8b0000');
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = this.glowTime > 0 ? 20 : 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (this.glowTime > 0) this.glowTime--;
+
+        if (this.parachute) {
+          ctx.beginPath();
+          ctx.moveTo(this.x - 10, this.y - this.radius);
+          ctx.lineTo(this.x + 10, this.y - this.radius);
+          ctx.lineTo(this.x, this.y - this.radius - 20);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(200, 200, 255, 0.6)';
+          ctx.fill();
+        }
+      }
+
+      update() {
+        if (this.parachute && this.vy > 1.2) this.vy = 1.2;
+        else this.vy += this.parachute ? 0.02 : 0.3;
+
+        this.y += this.vy;
+        this.x += this.vx;
+
+        if (
+          this.y + this.radius > pusher.y &&
+          this.y - this.radius < pusher.y + pusher.height &&
+          this.x > pusher.x &&
+          this.x < pusher.x + pusher.width
+        ) {
+          if (!this.onPusher || this.y > pusher.y - this.radius + 5) {
+            this.y = pusher.y - this.radius;
+            this.vy = 0;
+            this.vx = pusher.speed * pusher.direction * 0.6;
+            this.onPusher = true;
+            this.parachute = false;
+          }
+        } else if (this.onPusher && this.y > pusher.y + this.radius) {
+          this.onPusher = false;
+        }
+
+        if (this.onPusher && (this.x < pusher.x || this.x > pusher.x + pusher.width)) {
+          this.onPusher = false;
+        }
+
+        for (let obstacle of obstacles) {
+          if (
+            this.x > obstacle.x &&
+            this.x < obstacle.x + obstacle.width &&
+            this.y + this.radius > obstacle.y &&
+            this.y - this.radius < obstacle.y + obstacle.height
+          ) {
+            this.vx += (Math.random() - 0.5) * 8;
+            this.vy = -6;
+            for (let i = 0; i < 5; i++) {
+              particles.push(new Particle(this.x, this.y, 'knockback'));
+            }
+            sfx.thud.play();
+          }
+        }
+
+        return false;
+      }
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+      for (const coin of coins) {
+        const dx = coin.x - x;
+        const dy = coin.y - y;
+        if (Math.sqrt(dx * dx + dy * dy) <= coin.radius) {
+          if (!coin.onPusher && coin.y > pusher.y + pusher.height) {
+            coin.parachute = true;
+            return;
+          }
+        }
+      }
+
+      if (coinCount > 0) {
+        coins.push(new Coin(x, 50));
+        coinCount--;
+      } else {
+        sfx.noCoins.play();
+      }
+    });
+
+    function gameLoop() {
+      edgeY = canvas.height - 100;
+      pusher.y = canvas.height * 0.2;
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#3a3a3a');
+      gradient.addColorStop(1, '#1E90FF');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#8b0000';
+      ctx.fillRect(pusher.x, pusher.y, pusher.width, pusher.height);
+
+      pusher.x += pusher.speed * pusher.direction + (Math.random() - 0.5) * 4;
+      if (pusher.x + pusher.width > canvas.width - 50 || pusher.x < 50) {
+        pusher.direction *= -1;
+      }
+
+      winZone.x += winZone.speed * winZone.direction;
+      if (winZone.x <= 0 || winZone.x + winZone.width >= canvas.width) {
+        winZone.direction *= -1;
+      }
+
+      if (Math.random() < 0.01 && obstacles.length < 3) {
+        obstacles.push(new Obstacle());
+      }
+
+      for (let obs of obstacles) {
+        obs.update();
+        obs.draw();
+      }
+
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(winZone.x, edgeY);
+      ctx.lineTo(winZone.x + winZone.width, edgeY);
+      ctx.stroke();
+
+      coins = coins.filter(coin => !coin.update());
+      coins.forEach(coin => coin.draw());
+
+      particles = particles.filter(p => !p.update());
+      particles.forEach(p => p.draw());
+
+      ctx.font = 'bold 24px Arial';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Score: ${score} | Coins Left: ${coinCount}`, canvas.width / 2, 40);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>

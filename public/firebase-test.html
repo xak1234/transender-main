@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Firebase Connection Test</h1>
+        
+        <div id="config-status" class="status info">
+            <h3>Configuration Status</h3>
+            <div id="config-details"></div>
+        </div>
+        
+        <div id="connection-status" class="status info">
+            <h3>Connection Status</h3>
+            <div id="connection-details"></div>
+        </div>
+        
+        <div id="test-results" class="status info">
+            <h3>Test Results</h3>
+            <div id="test-details"></div>
+        </div>
+        
+        <button onclick="testFirebaseConnection()">Test Firebase Connection</button>
+        <button onclick="testFirestoreWrite()">Test Firestore Write</button>
+        <button onclick="testFirestoreRead()">Test Firestore Read</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+        // Firebase configuration - will be populated by server
+        const firebaseConfig = {
+            apiKey: window.FIREBASE_API_KEY || "",
+            authDomain: window.FIREBASE_AUTH_DOMAIN || "",
+            projectId: window.FIREBASE_PROJECT_ID || "",
+            storageBucket: window.FIREBASE_STORAGE_BUCKET || "",
+            messagingSenderId: window.FIREBASE_MESSAGING_SENDER_ID || "",
+            appId: window.FIREBASE_APP_ID || "",
+            measurementId: window.FIREBASE_MEASUREMENT_ID || ""
+        };
+
+        let db = null;
+        let connectionStatus = 'disconnected';
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('test-details');
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+        }
+
+        function updateConfigStatus() {
+            const configDiv = document.getElementById('config-details');
+            const requiredVars = ['FIREBASE_API_KEY', 'FIREBASE_PROJECT_ID', 'FIREBASE_AUTH_DOMAIN'];
+            const missingVars = requiredVars.filter(varName => !window[varName]);
+            
+            if (missingVars.length > 0) {
+                configDiv.innerHTML = `
+                    <div class="status error">❌ Missing required variables: ${missingVars.join(', ')}</div>
+                    <pre>${JSON.stringify(firebaseConfig, null, 2)}</pre>
+                `;
+            } else {
+                configDiv.innerHTML = `
+                    <div class="status success">✅ All required variables are set</div>
+                    <pre>${JSON.stringify(firebaseConfig, null, 2)}</pre>
+                `;
+            }
+        }
+
+        function updateConnectionStatus() {
+            const connectionDiv = document.getElementById('connection-details');
+            connectionDiv.innerHTML = `
+                <div class="status ${connectionStatus === 'connected' ? 'success' : 'warning'}">
+                    🔗 Connection Status: ${connectionStatus.toUpperCase()}
+                </div>
+            `;
+        }
+
+        async function testFirebaseConnection() {
+            log('Starting Firebase connection test...', 'info');
+            
+            try {
+                // Check if Firebase is already initialized
+                if (firebase.apps.length > 0) {
+                    log('Firebase already initialized', 'warning');
+                    firebase.app().delete();
+                }
+                
+                // Initialize Firebase
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                log('✅ Firebase initialized successfully', 'success');
+                
+                // Test network connection
+                await db.enableNetwork();
+                log('✅ Network connection enabled', 'success');
+                
+                connectionStatus = 'connected';
+                updateConnectionStatus();
+                
+            } catch (error) {
+                log(`❌ Firebase initialization failed: ${error.message}`, 'error');
+                connectionStatus = 'failed';
+                updateConnectionStatus();
+            }
+        }
+
+        async function testFirestoreWrite() {
+            if (!db) {
+                log('❌ Firebase not initialized. Run connection test first.', 'error');
+                return;
+            }
+            
+            log('Testing Firestore write operation...', 'info');
+            
+            try {
+                const testData = {
+                    test: true,
+                    timestamp: new Date(),
+                    message: 'Test write from diagnostic page'
+                };
+                
+                const docRef = await db.collection('test').add(testData);
+                log(`✅ Write successful. Document ID: ${docRef.id}`, 'success');
+                
+                // Clean up test document
+                await docRef.delete();
+                log('✅ Test document cleaned up', 'success');
+                
+            } catch (error) {
+                log(`❌ Write failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFirestoreRead() {
+            if (!db) {
+                log('❌ Firebase not initialized. Run connection test first.', 'error');
+                return;
+            }
+            
+            log('Testing Firestore read operation...', 'info');
+            
+            try {
+                const snapshot = await db.collection('leaderboard').limit(5).get();
+                const docs = [];
+                snapshot.forEach(doc => {
+                    docs.push({ id: doc.id, ...doc.data() });
+                });
+                
+                log(`✅ Read successful. Found ${docs.length} documents`, 'success');
+                if (docs.length > 0) {
+                    log(`📊 Sample data: ${JSON.stringify(docs[0], null, 2)}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ Read failed: ${error.message}`, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('test-details').innerHTML = '';
+        }
+
+        // Initialize page
+        updateConfigStatus();
+        updateConnectionStatus();
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testFirebaseConnection();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 

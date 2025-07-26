@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.franksgames.transender" version="1.0.0">
+    <name>TransEnder</name>
+    <description>TransEnder Game</description>
+    <author>Franksgames</author>
+    <content src="public/index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <platform name="android">
+        <preference name="Orientation" value="portrait" />
+    </platform>
+    <platform name="ios">
+        <preference name="Orientation" value="portrait" />
+    </platform>
+</widget> 
