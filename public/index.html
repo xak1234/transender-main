@@ -843,6 +843,7 @@
         </div>
         <div class="control-icon" id="musicIcon" title="Toggle Music">
             <i class="fas fa-music"></i>
+            <span id="musicTrackIndicator" style="position: absolute; top: -5px; right: -5px; background: #00ffcc; color: #000; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; display: none;">1</span>
         </div>
         <div class="control-icon" id="pauseIcon" title="Pause Game">
             <i class="fas fa-pause"></i>
@@ -1012,6 +1013,11 @@
         let lastTapX = 0;
         let lastTapY = 0;
         let tapActive = false;
+        
+        // Win zone drag tracking
+        let draggedZone = null;
+        let dragStartY = 0;
+        let dragStartZoneY = 0;
         let coins = [];
         let particles = [];
         let obstacles = [];
@@ -1027,6 +1033,8 @@
         let musicAudio = null;
         let musicPlaying = false;
         let gamePaused = false;
+        let currentMusicIndex = 0;
+        let musicPlaylist = ['oxy.mp3', 'ard.mp3', 'bag.mp3', 'fonker.mp3', 'anub.mp3', '4m.mp3'];
         const exitIcon = document.getElementById('exitIcon');
         const musicIcon = document.getElementById('musicIcon');
         const pauseIcon = document.getElementById('pauseIcon');
@@ -1070,7 +1078,10 @@
             directionChangeCooldown: 0, // Prevent rapid direction changes
             repelMode: false, // Repel balls down instead of winning
             repelTimer: 0, // Timer for repel mode (20 seconds = 1200 frames at 60fps)
-            repelCooldown: 0 // Cooldown before next repel mode can activate
+            repelCooldown: 0, // Cooldown before next repel mode can activate
+            isDragging: false,
+            playerControlled: false,
+            originalSpeed: 1.1
         };
         const leftWinZone = { 
             x: 50, 
@@ -1088,7 +1099,10 @@
             directionChangeCooldown: 0, // Prevent rapid direction changes
             repelMode: false, // Repel balls down instead of winning
             repelTimer: 0, // Timer for repel mode (20 seconds = 1200 frames at 60fps)
-            repelCooldown: 0 // Cooldown before next repel mode can activate
+            repelCooldown: 0, // Cooldown before next repel mode can activate
+            isDragging: false,
+            playerControlled: false,
+            originalSpeed: 2.475
         };
         const rightWinZone = { 
             x: 700, 
@@ -1106,7 +1120,10 @@
             directionChangeCooldown: 0, // Prevent rapid direction changes
             repelMode: false, // Repel balls down instead of winning
             repelTimer: 0, // Timer for repel mode (20 seconds = 1200 frames at 60fps)
-            repelCooldown: 0 // Cooldown before next repel mode can activate
+            repelCooldown: 0, // Cooldown before next repel mode can activate
+            isDragging: false,
+            playerControlled: false,
+            originalSpeed: 2.475
         };
 
         // Load and display top player on intro screen
@@ -1225,8 +1242,11 @@
                     // Stop music if playing
                     if (musicAudio && musicPlaying) {
                         musicAudio.pause();
+                        musicAudio.currentTime = 0;
                         musicPlaying = false;
                         musicIcon.classList.remove('active');
+                        currentMusicIndex = 0; // Reset to first song for next start
+                        updateTrackIndicator();
                     }
                     // Reset game state
                     gameStarted = false;
@@ -1259,31 +1279,54 @@
                 });
             }
 
-            // Music Icon - Toggle music
+            // Music Icon - Toggle music and cycle through tracks
             if (musicIcon) {
-                musicIcon.addEventListener('click', () => {
-                    console.log('Music icon clicked - toggling music');
-                    if (!musicAudio) {
-                        // Initialize audio on first click
-                        musicAudio = new Audio('oxy.mp3');
-                        musicAudio.loop = true;
-                        musicAudio.volume = 0.5;
-                    }
+                musicIcon.addEventListener('click', async () => {
+                    console.log('Music icon clicked - cycling through tracks');
                     
                     if (musicPlaying) {
-                        // Stop music
-                        musicAudio.pause();
-                        musicPlaying = false;
-                        musicIcon.classList.remove('active');
-                        console.log('Music stopped');
+                        // If music is playing, switch to next track
+                        currentMusicIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+                        console.log(`Switching to track ${currentMusicIndex + 1}/${musicPlaylist.length}: ${musicPlaylist[currentMusicIndex]}`);
+                        
+                        // Stop current song and play next one
+                        if (musicAudio) {
+                            musicAudio.pause();
+                            musicAudio.removeEventListener('ended', handleSongEnd);
+                            musicAudio.removeEventListener('error', handleSongError);
+                            musicAudio = null;
+                        }
+                        
+                        try {
+                            await playNextSong();
+                            updateTrackIndicator();
+                        } catch (error) {
+                            console.error('Failed to switch to next track:', error);
+                            // If switching fails, try the next track
+                            currentMusicIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+                            setTimeout(() => {
+                                playNextSong();
+                                updateTrackIndicator();
+                            }, 500);
+                        }
                     } else {
-                        // Start music
-                        musicAudio.play().catch(error => {
-                            console.error('Error playing music:', error);
-                        });
-                        musicPlaying = true;
-                        musicIcon.classList.add('active');
-                        console.log('Music started');
+                        // Start music playlist from current index
+                        try {
+                            musicPlaying = true;
+                            musicIcon.classList.add('active');
+                            
+                            console.log(`Starting music playlist at track ${currentMusicIndex + 1}/${musicPlaylist.length}: ${musicPlaylist[currentMusicIndex]}`);
+                            console.log('Available songs:', musicPlaylist);
+                            
+                            await playNextSong();
+                            updateTrackIndicator();
+                        } catch (error) {
+                            console.error('Failed to start music:', error);
+                            musicPlaying = false;
+                            musicIcon.classList.remove('active');
+                            updateTrackIndicator();
+                            alert('Could not start music. Please check browser permissions for audio playback.');
+                        }
                     }
                 });
             }
@@ -1306,6 +1349,100 @@
                         console.log('Game resumed');
                     }
                 });
+            }
+        }
+
+        // Music playlist functions
+        function updateTrackIndicator() {
+            const trackIndicator = document.getElementById('musicTrackIndicator');
+            const musicIcon = document.getElementById('musicIcon');
+            if (trackIndicator) {
+                if (musicPlaying) {
+                    trackIndicator.textContent = currentMusicIndex + 1;
+                    trackIndicator.style.display = 'flex';
+                    // Update tooltip to show current track
+                    if (musicIcon) {
+                        const currentSong = musicPlaylist[currentMusicIndex];
+                        musicIcon.title = `Current Track: ${currentSong} (${currentMusicIndex + 1}/${musicPlaylist.length}) - Click to switch tracks`;
+                    }
+                } else {
+                    trackIndicator.style.display = 'none';
+                    // Reset tooltip
+                    if (musicIcon) {
+                        musicIcon.title = 'Toggle Music - Click to start playlist';
+                    }
+                }
+            }
+        }
+        
+        function playNextSong() {
+            return new Promise((resolve, reject) => {
+                if (!musicPlaying) {
+                    console.log('Music playback stopped');
+                    resolve();
+                    return;
+                }
+                
+                // Create new audio element for current song
+                if (musicAudio) {
+                    musicAudio.pause();
+                    musicAudio.removeEventListener('ended', handleSongEnd);
+                    musicAudio.removeEventListener('error', handleSongError);
+                    musicAudio = null;
+                }
+                
+                const currentSong = musicPlaylist[currentMusicIndex];
+                console.log(`Attempting to play: ${currentSong} (${currentMusicIndex + 1}/${musicPlaylist.length})`);
+                
+                musicAudio = new Audio(currentSong);
+                musicAudio.volume = 0.5;
+                musicAudio.preload = 'auto';
+                
+                // Add event listeners
+                musicAudio.addEventListener('ended', handleSongEnd);
+                musicAudio.addEventListener('error', () => {
+                    reject(new Error(`Failed to load ${currentSong}`));
+                    handleSongError();
+                });
+                musicAudio.addEventListener('loadstart', () => console.log(`Loading: ${currentSong}`));
+                musicAudio.addEventListener('canplay', () => console.log(`Ready to play: ${currentSong}`));
+                
+                // Play the current song
+                musicAudio.play().then(() => {
+                    console.log(`Successfully playing: ${currentSong}`);
+                    updateTrackIndicator();
+                    resolve();
+                }).catch(error => {
+                    console.error(`Error playing ${currentSong}:`, error);
+                    reject(error);
+                    handleSongError();
+                });
+            });
+        }
+        
+        function handleSongEnd() {
+            console.log(`Song ended: ${musicPlaylist[currentMusicIndex]}`);
+            if (musicPlaying) {
+                // Move to next song in playlist
+                currentMusicIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+                console.log(`Moving to next song: ${musicPlaylist[currentMusicIndex]}`);
+                setTimeout(() => {
+                    playNextSong();
+                    updateTrackIndicator();
+                }, 500); // Small delay between songs
+            }
+        }
+        
+        function handleSongError() {
+            console.error(`Error with song: ${musicPlaylist[currentMusicIndex]}`);
+            if (musicPlaying) {
+                // Try the next song
+                currentMusicIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+                console.log(`Skipping to next song: ${musicPlaylist[currentMusicIndex]}`);
+                setTimeout(() => {
+                    playNextSong();
+                    updateTrackIndicator();
+                }, 1000);
             }
         }
 
@@ -1384,6 +1521,16 @@
             pusher.y = 100;
             pusher.speed = 4;
             pusher.direction = 1;
+            
+            // Reset music state
+            if (musicAudio && musicPlaying) {
+                musicAudio.pause();
+                musicAudio.currentTime = 0;
+                musicPlaying = false;
+                musicIcon.classList.remove('active');
+                currentMusicIndex = 0; // Reset to first track
+                updateTrackIndicator();
+            }
         }
 
         // BallKiller Demon class
@@ -2716,8 +2863,25 @@
                     });
 
                     if (logicalY > edgeY && logicalX >= bottomWinZone.x && logicalX <= bottomWinZone.x + bottomWinZone.width) {
+                        // Check if player controlled - bounce the ball
+                        if (bottomWinZone.playerControlled) {
+                            // Bounce the ball upward with some force
+                            this.vy = -Math.abs(this.vy) - 5; // Bounce upward with extra force
+                            this.vx += (Math.random() - 0.5) * 3; // Add slight horizontal variation
+                            
+                            // Create bounce effect particles
+                            for (let i = 0; i < 5; i++) {
+                                particles.push(new Particle(logicalX, edgeY, 'bounce'));
+                            }
+                            
+                            // Play bounce sound
+                            playSound(300, 'sine', 0.3, 0.2);
+                            
+                            console.log('Ball bounced off player-controlled bottom zone!');
+                            return false; // Don't remove the ball, just bounce it
+                        }
                         // Check if in repel mode
-                        if (bottomWinZone.repelMode) {
+                        else if (bottomWinZone.repelMode) {
                             // Repel the ball down with force
                             this.vy = Math.abs(this.vy) + 15; // Strong downward force
                             this.vx += (Math.random() - 0.5) * 10; // Add some horizontal randomness
@@ -2735,7 +2899,17 @@
                         } else {
                             // Normal win behavior
                             createWinExplosion(logicalX, edgeY);
-                            score += multiplierTimer > 0 ? 20 : 10;
+                            let points = multiplierTimer > 0 ? 20 : 10;
+                            // Bonus points for player-controlled zones
+                            if (bottomWinZone.playerControlled) {
+                                points *= 2;
+                                // Extra particles for player control bonus
+                                for (let i = 0; i < 5; i++) {
+                                    particles.push(new Particle(logicalX, edgeY, 'bonus'));
+                                }
+                                console.log('Player-controlled zone bonus: +' + points + ' points!');
+                            }
+                            score += points;
                             consecutiveWins++;
                             bottomWinZone.glowTime = 20;
                             
@@ -2791,11 +2965,28 @@
                         playSound(432, 'sine', 1.0, 0.3);
                         return true;
                     } else if (logicalX >= leftWinZone.x && logicalX <= leftWinZone.x + leftWinZone.width &&
-                              logicalY >= leftWinZone.y && logicalY <= leftWinZone.y + leftWinZone.height) {
-                        console.log('Left win zone hit! Ball at:', logicalX, logicalY, 'Zone:', leftWinZone.x, leftWinZone.y, leftWinZone.width, leftWinZone.height, 'UFO present:', ufo && ufo.spawned);
-                        
+                    logicalY >= leftWinZone.y && logicalY <= leftWinZone.y + leftWinZone.height) {
+                    console.log('Left win zone hit! Ball at:', logicalX, logicalY, 'Zone:', leftWinZone.x, leftWinZone.y, leftWinZone.width, leftWinZone.height, 'UFO present:', ufo && ufo.spawned);
+                    
+                    // Check if player controlled - bounce the ball
+                    if (leftWinZone.playerControlled) {
+                            // Bounce the ball away from the left wall
+                            this.vx = Math.abs(this.vx) + 3; // Bounce rightward with extra force
+                            this.vy += (Math.random() - 0.5) * 3; // Add slight vertical variation
+                            
+                            // Create bounce effect particles
+                            for (let i = 0; i < 5; i++) {
+                                particles.push(new Particle(leftWinZone.x + leftWinZone.width / 2, logicalY, 'bounce'));
+                            }
+                            
+                            // Play bounce sound
+                            playSound(300, 'sine', 0.3, 0.2);
+                            
+                            console.log('Ball bounced off player-controlled left zone!');
+                            return false; // Don't remove the ball, just bounce it
+                        }
                         // Check if in repel mode
-                        if (leftWinZone.repelMode) {
+                        else if (leftWinZone.repelMode) {
                             // Repel the ball down with force
                             this.vy = Math.abs(this.vy) + 15; // Strong downward force
                             this.vx += (Math.random() - 0.5) * 10; // Add some horizontal randomness
@@ -2813,7 +3004,17 @@
                         } else {
                             // Normal win behavior
                             createWinExplosion(leftWinZone.x + leftWinZone.width / 2, logicalY);
-                            score += this.lastObstacleHitTime > 0 ? (multiplierTimer > 0 ? 40 : 20) : (multiplierTimer > 0 ? 20 : 10);
+                            let points = this.lastObstacleHitTime > 0 ? (multiplierTimer > 0 ? 40 : 20) : (multiplierTimer > 0 ? 20 : 10);
+                            // Bonus points for player-controlled zones
+                            if (leftWinZone.playerControlled) {
+                                points *= 2;
+                                // Extra particles for player control bonus
+                                for (let i = 0; i < 5; i++) {
+                                    particles.push(new Particle(leftWinZone.x + leftWinZone.width / 2, logicalY, 'bonus'));
+                                }
+                                console.log('Player-controlled zone bonus: +' + points + ' points!');
+                            }
+                            score += points;
                             consecutiveWins++;
                             leftWinZone.glowTime = 20;
                             
@@ -2869,11 +3070,28 @@
                         playSound(432, 'sine', 1.0, 0.3);
                         return true;
                     } else if (logicalX >= rightWinZone.x && logicalX <= rightWinZone.x + rightWinZone.width &&
-                              logicalY >= rightWinZone.y && logicalY <= rightWinZone.y + rightWinZone.height) {
-                        console.log('Right win zone hit! Ball at:', logicalX, logicalY, 'Zone:', rightWinZone.x, rightWinZone.y, rightWinZone.width, rightWinZone.height, 'UFO present:', ufo && ufo.spawned);
-                        
+                    logicalY >= rightWinZone.y && logicalY <= rightWinZone.y + rightWinZone.height) {
+                    console.log('Right win zone hit! Ball at:', logicalX, logicalY, 'Zone:', rightWinZone.x, rightWinZone.y, rightWinZone.width, rightWinZone.height, 'UFO present:', ufo && ufo.spawned);
+                    
+                    // Check if player controlled - bounce the ball
+                    if (rightWinZone.playerControlled) {
+                            // Bounce the ball away from the right wall
+                            this.vx = -Math.abs(this.vx) - 3; // Bounce leftward with extra force
+                            this.vy += (Math.random() - 0.5) * 3; // Add slight vertical variation
+                            
+                            // Create bounce effect particles
+                            for (let i = 0; i < 5; i++) {
+                                particles.push(new Particle(rightWinZone.x + rightWinZone.width / 2, logicalY, 'bounce'));
+                            }
+                            
+                            // Play bounce sound
+                            playSound(300, 'sine', 0.3, 0.2);
+                            
+                            console.log('Ball bounced off player-controlled right zone!');
+                            return false; // Don't remove the ball, just bounce it
+                        }
                         // Check if in repel mode
-                        if (rightWinZone.repelMode) {
+                        else if (rightWinZone.repelMode) {
                             // Repel the ball down with force
                             this.vy = Math.abs(this.vy) + 15; // Strong downward force
                             this.vx += (Math.random() - 0.5) * 10; // Add some horizontal randomness
@@ -2891,7 +3109,17 @@
                         } else {
                             // Normal win behavior
                             createWinExplosion(rightWinZone.x + rightWinZone.width / 2, logicalY);
-                            score += this.lastObstacleHitTime > 0 ? (multiplierTimer > 0 ? 40 : 20) : (multiplierTimer > 0 ? 20 : 10);
+                            let points = this.lastObstacleHitTime > 0 ? (multiplierTimer > 0 ? 40 : 20) : (multiplierTimer > 0 ? 20 : 10);
+                            // Bonus points for player-controlled zones
+                            if (rightWinZone.playerControlled) {
+                                points *= 2;
+                                // Extra particles for player control bonus
+                                for (let i = 0; i < 5; i++) {
+                                    particles.push(new Particle(rightWinZone.x + rightWinZone.width / 2, logicalY, 'bonus'));
+                                }
+                                console.log('Player-controlled zone bonus: +' + points + ' points!');
+                            }
+                            score += points;
                             consecutiveWins++;
                             rightWinZone.glowTime = 20;
                             
@@ -3167,6 +3395,51 @@
                 lastTapY = scaledY;
                 tapActive = true;
 
+                // Check for win zone clicks
+                const clickThreshold = 15; // Pixels threshold for clicking near zones
+                
+                // Check bottom win zone (horizontal line)
+                if (Math.abs(scaledY - edgeY) < clickThreshold && 
+                    scaledX >= bottomWinZone.x && 
+                    scaledX <= bottomWinZone.x + bottomWinZone.width) {
+                    draggedZone = bottomWinZone;
+                    dragStartY = scaledY;
+                    dragStartZoneY = edgeY;
+                    bottomWinZone.isDragging = true;
+                    bottomWinZone.playerControlled = true;
+                    bottomWinZone.speed = 0; // Stop automatic movement
+                    console.log('Bottom win zone clicked for dragging');
+                    return; // Don't spawn ball
+                }
+                
+                // Check left win zone (vertical line)
+                if (Math.abs(scaledX - leftWinZone.x) < clickThreshold && 
+                    scaledY >= leftWinZone.y && 
+                    scaledY <= leftWinZone.y + leftWinZone.height) {
+                    draggedZone = leftWinZone;
+                    dragStartY = scaledY;
+                    dragStartZoneY = leftWinZone.y;
+                    leftWinZone.isDragging = true;
+                    leftWinZone.playerControlled = true;
+                    leftWinZone.speed = 0; // Stop automatic movement
+                    console.log('Left win zone clicked for dragging');
+                    return; // Don't spawn ball
+                }
+                
+                // Check right win zone (vertical line)
+                if (Math.abs(scaledX - rightWinZone.x) < clickThreshold && 
+                    scaledY >= rightWinZone.y && 
+                    scaledY <= rightWinZone.y + rightWinZone.height) {
+                    draggedZone = rightWinZone;
+                    dragStartY = scaledY;
+                    dragStartZoneY = rightWinZone.y;
+                    rightWinZone.isDragging = true;
+                    rightWinZone.playerControlled = true;
+                    rightWinZone.speed = 0; // Stop automatic movement
+                    console.log('Right win zone clicked for dragging');
+                    return; // Don't spawn ball
+                }
+
                 if (ufo && ufo.spawned) {
                     const ufoX = ufo.x;
                     const ufoY = ufo.y;
@@ -3269,6 +3542,45 @@
         canvas.removeEventListener('touchstart', handleInput);
         canvas.removeEventListener('click', handleInput);
         canvas.addEventListener('pointerdown', handleInput);
+        
+        // Add pointer move and up events for dragging
+        function handlePointerMove(e) {
+            if (!draggedZone) return;
+            e.preventDefault();
+            
+            const rect = canvas.getBoundingClientRect();
+            const y = (e.type === 'touchmove' ? e.touches[0].clientY : e.clientY) - rect.top;
+            const scaledY = y * (600 / canvas.height);
+            
+            const deltaY = scaledY - dragStartY;
+            
+            if (draggedZone === bottomWinZone) {
+                // For bottom zone, we can't move it up/down as it's fixed at bottom
+                // Instead, let's change its width based on vertical movement
+                const newWidth = Math.max(50, Math.min(200, draggedZone.baseWidth + deltaY));
+                draggedZone.width = newWidth;
+            } else {
+                // For side zones, move them up/down
+                const newY = Math.max(50, Math.min(450, dragStartZoneY + deltaY));
+                draggedZone.y = newY;
+            }
+        }
+        
+        function handlePointerUp(e) {
+            if (draggedZone) {
+                draggedZone.isDragging = false;
+                // Restore automatic movement
+                draggedZone.playerControlled = false;
+                draggedZone.speed = draggedZone.originalSpeed;
+                console.log('Win zone released - resuming automatic movement');
+                draggedZone = null;
+            }
+        }
+        
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointercancel', handlePointerUp);
+        document.addEventListener('pointerup', handlePointerUp); // Handle mouse up outside canvas
 
         function gameLoop() {
             try {
@@ -3484,13 +3796,15 @@
                 }
 
                 // Bottom win zone movement with improved boundary checking
-                bottomWinZone.x += bottomWinZone.speed * bottomWinZone.direction;
-                if (bottomWinZone.x + bottomWinZone.width > 800 - 50) {
-                    bottomWinZone.x = 800 - 50 - bottomWinZone.width;
-                    bottomWinZone.direction = -1;
-                } else if (bottomWinZone.x < 50) {
-                    bottomWinZone.x = 50;
-                    bottomWinZone.direction = 1;
+                if (!bottomWinZone.playerControlled) {
+                    bottomWinZone.x += bottomWinZone.speed * bottomWinZone.direction;
+                    if (bottomWinZone.x + bottomWinZone.width > 800 - 50) {
+                        bottomWinZone.x = 800 - 50 - bottomWinZone.width;
+                        bottomWinZone.direction = -1;
+                    } else if (bottomWinZone.x < 50) {
+                        bottomWinZone.x = 50;
+                        bottomWinZone.direction = 1;
+                    }
                 }
                 
                 // Update direction change cooldown
@@ -3511,13 +3825,15 @@
                 }
 
                 // Left win zone movement with improved boundary checking
-                leftWinZone.y += leftWinZone.speed * leftWinZone.direction;
-                if (leftWinZone.y + leftWinZone.height > 500) {
-                    leftWinZone.y = 500 - leftWinZone.height;
-                    leftWinZone.direction = -1;
-                } else if (leftWinZone.y < 100) {
-                    leftWinZone.y = 100;
-                    leftWinZone.direction = 1;
+                if (!leftWinZone.playerControlled) {
+                    leftWinZone.y += leftWinZone.speed * leftWinZone.direction;
+                    if (leftWinZone.y + leftWinZone.height > 500) {
+                        leftWinZone.y = 500 - leftWinZone.height;
+                        leftWinZone.direction = -1;
+                    } else if (leftWinZone.y < 100) {
+                        leftWinZone.y = 100;
+                        leftWinZone.direction = 1;
+                    }
                 }
                 
                 // Update direction change cooldown
@@ -3538,13 +3854,15 @@
                 }
 
                 // Right win zone movement with improved boundary checking
-                rightWinZone.y += rightWinZone.speed * rightWinZone.direction;
-                if (rightWinZone.y + rightWinZone.height > 500) {
-                    rightWinZone.y = 500 - rightWinZone.height;
-                    rightWinZone.direction = -1;
-                } else if (rightWinZone.y < 100) {
-                    rightWinZone.y = 100;
-                    rightWinZone.direction = 1;
+                if (!rightWinZone.playerControlled) {
+                    rightWinZone.y += rightWinZone.speed * rightWinZone.direction;
+                    if (rightWinZone.y + rightWinZone.height > 500) {
+                        rightWinZone.y = 500 - rightWinZone.height;
+                        rightWinZone.direction = -1;
+                    } else if (rightWinZone.y < 100) {
+                        rightWinZone.y = 100;
+                        rightWinZone.direction = 1;
+                    }
                 }
                 
                 // Update direction change cooldown
@@ -3703,6 +4021,10 @@
                     ctx.strokeStyle = '#ff8800'; // Orange color for repel mode
                     ctx.shadowColor = '#ff8800';
                     ctx.shadowBlur = 10;
+                } else if (bottomWinZone.playerControlled) {
+                    ctx.strokeStyle = '#00ff00'; // Green color for player-controlled
+                    ctx.shadowColor = '#00ff00';
+                    ctx.shadowBlur = 15;
                 } else {
                     ctx.strokeStyle = '#ffd700'; // Gold color for normal mode
                     ctx.shadowBlur = 0;
@@ -3770,6 +4092,10 @@
                     ctx.strokeStyle = '#ff8800'; // Orange color for repel mode
                     ctx.shadowColor = '#ff8800';
                     ctx.shadowBlur = 10;
+                } else if (leftWinZone.playerControlled) {
+                    ctx.strokeStyle = '#00ff00'; // Green color for player-controlled
+                    ctx.shadowColor = '#00ff00';
+                    ctx.shadowBlur = 15;
                 } else {
                     ctx.strokeStyle = '#ffd700'; // Gold color for normal mode
                     ctx.shadowBlur = 0;
@@ -3798,6 +4124,10 @@
                     ctx.strokeStyle = '#ff8800'; // Orange color for repel mode
                     ctx.shadowColor = '#ff8800';
                     ctx.shadowBlur = 10;
+                } else if (rightWinZone.playerControlled) {
+                    ctx.strokeStyle = '#00ff00'; // Green color for player-controlled
+                    ctx.shadowColor = '#00ff00';
+                    ctx.shadowBlur = 15;
                 } else {
                     ctx.strokeStyle = '#ffd700'; // Gold color for normal mode
                     ctx.shadowBlur = 0;
