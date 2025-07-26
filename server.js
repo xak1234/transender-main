@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const firebaseService = require('./firebase-service');
+// Firebase service removed - all operations handled client-side for security
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,10 +12,11 @@ function escapeForJS(value) {
   return value.replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
-// CORS middleware to allow cross-origin requests
+// CORS middleware - restrict to same origin only
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  // Only allow same-origin requests for security
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:3001');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -24,8 +25,15 @@ app.use((req, res, next) => {
   }
 });
 
-// Middleware to parse JSON
-app.use(express.json());
+// Security headers middleware
+app.use((req, res, next) => {
+  // Add security headers
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'DENY');
+  res.header('X-XSS-Protection', '1; mode=block');
+  res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // Handle favicon requests
 app.get('/favicon.ico', (req, res) => {
@@ -110,37 +118,11 @@ app.get('/transender.html', (req, res) => {
   });
 });
 
-// Serve Firebase test page
-app.get('/firebase-test', (req, res) => {
-  const fs = require('fs');
-  const testPath = path.join(__dirname, 'public', 'firebase-test.html');
-  
-  fs.readFile(testPath, 'utf8', (err, data) => {
-    if (err) {
-      console.error('Error reading firebase-test.html:', err);
-      return res.status(500).send('Error loading test page');
-    }
-    
-    // Inject Firebase config from environment variables with proper escaping
-    const firebaseConfig = `
-      <script>
-        window.FIREBASE_API_KEY = "${escapeForJS(process.env.FIREBASE_API_KEY)}";
-        window.FIREBASE_AUTH_DOMAIN = "${escapeForJS(process.env.FIREBASE_AUTH_DOMAIN)}";
-        window.FIREBASE_PROJECT_ID = "${escapeForJS(process.env.FIREBASE_PROJECT_ID)}";
-        window.FIREBASE_STORAGE_BUCKET = "${escapeForJS(process.env.FIREBASE_STORAGE_BUCKET)}";
-        window.FIREBASE_MESSAGING_SENDER_ID = "${escapeForJS(process.env.FIREBASE_MESSAGING_SENDER_ID)}";
-        window.FIREBASE_APP_ID = "${escapeForJS(process.env.FIREBASE_APP_ID)}";
-        window.FIREBASE_MEASUREMENT_ID = "${escapeForJS(process.env.FIREBASE_MEASUREMENT_ID)}";
-      </script>
-    `;
-    
-    // Insert the config before the closing </head> tag
-    const modifiedData = data.replace('</head>', `${firebaseConfig}\n</head>`);
-    
-    res.setHeader('Content-Type', 'text/html');
-    res.send(modifiedData);
-  });
-});
+// Firebase test page - DISABLED for production security
+// app.get('/firebase-test', (req, res) => {
+//   // This endpoint is disabled to prevent exposure of Firebase config
+//   res.status(404).send('Not Found');
+// });
 
 // Serve static files from the public directory (after specific routes)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -153,45 +135,30 @@ app.get('*', (req, res) => {
   res.redirect('/');
 });
 
-// API Routes
-app.get('/api/leaderboard', async (req, res) => {
-  try {
-    const scores = await firebaseService.getLeaderboard();
-    res.json(scores);
-  } catch (error) {
-    console.error('Error loading leaderboard:', error);
-    res.status(500).json({ error: 'Failed to load leaderboard' });
-  }
-});
+// API Routes - DISABLED for production security
+// All database operations are handled client-side through Firebase SDK
+// This prevents server-side API exposure and potential abuse
 
-app.post('/api/leaderboard', async (req, res) => {
-  try {
-    const { name, score } = req.body;
-    if (!name || typeof score !== 'number') {
-      return res.status(400).json({ error: 'Invalid data' });
-    }
-    
-    await firebaseService.addScore(name, score);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error saving score:', error);
-    res.status(500).json({ error: 'Failed to save score' });
-  }
-});
+// app.get('/api/leaderboard', async (req, res) => {
+//   // DISABLED - Use Firebase client SDK instead
+//   res.status(404).json({ error: 'API disabled for security' });
+// });
 
-app.delete('/api/leaderboard', async (req, res) => {
-  try {
-    await firebaseService.clearLeaderboard();
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error clearing leaderboard:', error);
-    res.status(500).json({ error: 'Failed to clear leaderboard' });
-  }
-});
+// app.post('/api/leaderboard', async (req, res) => {
+//   // DISABLED - Use Firebase client SDK instead
+//   res.status(404).json({ error: 'API disabled for security' });
+// });
+
+// app.delete('/api/leaderboard', async (req, res) => {
+//   // DISABLED - Use Firebase client SDK instead
+//   res.status(404).json({ error: 'API disabled for security' });
+// });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 TransEnder web service running on port ${PORT}`);
-  console.log(`📱 Visit: http://localhost:${PORT}`);
+  console.log(`📱 Local: http://localhost:${PORT}`);
+  console.log(`🌐 Render: https://your-app-name.onrender.com`);
   console.log('🔥 Firebase integration ready');
+  console.log('🔒 Security: No API endpoints exposed');
 }); 

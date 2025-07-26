@@ -46,6 +46,12 @@
             touch-action: none !important;
             user-select: none;
             -webkit-user-select: none;
+            /* Anti-flicker optimizations */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            will-change: auto;
         }
 
         /* Tablet-specific styling (768px and below, but larger than 480px) */
@@ -95,6 +101,29 @@
         @media (max-width: 480px) {
             canvas {
                 margin-top: 15px; /* Reduced space on smaller screens */
+            }
+        }
+
+        /* Performance optimizations for tablets */
+        @media (min-width: 481px) and (max-width: 1024px) {
+            /* Reduce visual effects for better performance */
+            canvas {
+                /* Disable hardware acceleration issues on some tablets */
+                -webkit-transform: translateZ(0);
+                transform: translateZ(0);
+                /* Reduce shadow complexity */
+                box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+            }
+            
+            /* Optimize for Fire tablet specifically */
+            @supports (-webkit-appearance: none) {
+                canvas {
+                    /* Fire tablet specific optimizations */
+                    -webkit-backface-visibility: hidden;
+                    backface-visibility: hidden;
+                    -webkit-perspective: 1000;
+                    perspective: 1000;
+                }
             }
         }
 
@@ -434,8 +463,9 @@
         }
 
         @keyframes glow {
-            from { text-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
-            to { text-shadow: 0 0 30px rgba(255, 255, 255, 1), 0 0 40px rgba(255, 255, 255, 0.8); }
+            0% { text-shadow: 0 0 15px rgba(255, 255, 255, 0.6); }
+            50% { text-shadow: 0 0 25px rgba(255, 255, 255, 0.8); }
+            100% { text-shadow: 0 0 15px rgba(255, 255, 255, 0.6); }
         }
 
         @keyframes pulse {
@@ -990,6 +1020,24 @@
         const restartButton = document.getElementById('restartButton');
         const usernameInput = document.getElementById('usernameInput');
         
+        // Performance detection and optimization
+        const isTablet = window.innerWidth >= 481 && window.innerWidth <= 1024;
+        const isFireTablet = navigator.userAgent.includes('Silk') || navigator.userAgent.includes('Fire');
+        const isLowPerformance = isTablet || isFireTablet;
+        
+        // Performance settings based on device
+        const PERFORMANCE_SETTINGS = {
+            maxParticles: isLowPerformance ? 50 : 200,
+            particleLifetime: isLowPerformance ? 20 : 30,
+            backgroundGridDensity: isLowPerformance ? 100 : 50,
+            enableShadows: !isLowPerformance,
+            enableComplexEffects: !isLowPerformance,
+            frameRate: isLowPerformance ? 30 : 60
+        };
+        
+        console.log('Performance settings:', PERFORMANCE_SETTINGS);
+        console.log('Device type:', isTablet ? 'Tablet' : 'Desktop', isFireTablet ? '(Fire Tablet)' : '');
+        
         // Game state variables - declared early to avoid initialization errors
         let lastTapTime = 0;
         let ufo = null;
@@ -1013,6 +1061,7 @@
         let lastTapX = 0;
         let lastTapY = 0;
         let tapActive = false;
+        let lastFrameTime = 0;
         
         // Win zone drag tracking
         let draggedZone = null;
@@ -2495,12 +2544,17 @@
         // Particle class for effects
         class Particle {
             constructor(x, y, type) {
+                // Limit particles on low-performance devices
+                if (particles.length >= PERFORMANCE_SETTINGS.maxParticles) {
+                    return null; // Don't create particle if at limit
+                }
+                
                 this.x = x * canvas.width / 800;
                 this.y = y * canvas.height / 600;
                 this.size = (type === 'spark' || type === 'parachute' || type === 'magnet' || type === 'miss' || type === 'ufo' || type === 'bonus' || type === 'suck' || type === 'demon' || type === 'bomb' || type === 'explosion' || type === 'direction' || type === 'repel') ? (Math.random() * 2 + 1) * (canvas.width / 800) : (Math.random() * 5 + 2) * (canvas.width / 800);
                 this.vx = (type === 'spark' || type === 'parachute' || type === 'magnet' || type === 'miss' || type === 'ufo' || type === 'bonus' || type === 'suck' || type === 'demon' || type === 'bomb' || type === 'explosion' || type === 'direction' || type === 'repel') ? (Math.random() - 0.5) * 4 : (Math.random() - 0.5) * 8;
                 this.vy = (type === 'spark' || type === 'parachute' || type === 'magnet' || type === 'miss' || type === 'ufo' || type === 'bonus' || type === 'suck' || type === 'demon' || type === 'bomb' || type === 'explosion' || type === 'direction' || type === 'repel') ? (Math.random() - 0.5) * 4 : (Math.random() - 0.5) * 8;
-                this.life = type === 'spark' || type === 'parachute' || type === 'magnet' || type === 'miss' || type === 'ufo' || type === 'bonus' || type === 'suck' || type === 'demon' || type === 'bomb' || type === 'explosion' || type === 'direction' || type === 'repel' ? 15 : 30;
+                this.life = type === 'spark' || type === 'parachute' || type === 'magnet' || type === 'miss' || type === 'ufo' || type === 'bonus' || type === 'suck' || type === 'demon' || type === 'bomb' || type === 'explosion' || type === 'direction' || type === 'repel' ? PERFORMANCE_SETTINGS.particleLifetime / 2 : PERFORMANCE_SETTINGS.particleLifetime;
                 this.color = type === 'spark' || type === 'parachute' ? '#ffffff' : type === 'knockback' ? '#ffa500' : type === 'magnet' ? '#00b7eb' : type === 'miss' || type === 'bonus' ? '#ffff00' : type === 'ufo' ? '#00ff00' : type === 'suck' ? '#ff0000' : type === 'demon' ? '#8b0000' : type === 'bomb' ? '#0066ff' : type === 'explosion' ? '#ff6600' : type === 'direction' ? '#ff00ff' : type === 'repel' ? '#ff8800' : `hsl(${Math.random() * 360}, 100%, 50%)`;
             }
 
@@ -2549,8 +2603,11 @@
                     this.shakeTimer = 0;
                     this.shakeIntensity = 0;
                     playSound(600, 'square', 0.1, 0.3);
-                    for (let i = 0; i < 5; i++) {
-                        particles.push(new Particle(x, y, 'miss'));
+                    // Reduced particle count for tablets
+                    const particleCount = isLowPerformance ? 2 : 5;
+                    for (let i = 0; i < particleCount; i++) {
+                        const particle = new Particle(x, y, 'miss');
+                        if (particle) particles.push(particle);
                     }
                 } catch (error) {
                     console.error('Coin constructor error:', error);
@@ -2589,27 +2646,41 @@
 
                     ctx.beginPath();
                     ctx.arc(drawX, drawY, this.radius, 0, Math.PI * 2);
-                    const gradient = ctx.createRadialGradient(this.x - 5 * (canvas.width / 800), this.y - 5 * (canvas.height / 600), 2 * (canvas.width / 800), this.x, this.y, this.radius);
-                    gradient.addColorStop(0, '#ff3333');
-                    gradient.addColorStop(1, '#cc0000');
-                    ctx.fillStyle = gradient;
-                    ctx.shadowColor = (this.glowTime > 0 || superParachuteTimer > 0) ? '#00ffcc' : '#ff3333';
-                    ctx.shadowBlur = (this.glowTime > 0 || superParachuteTimer > 0) ? 15 : 10;
+                    
+                    // Optimized rendering for tablets
+                    if (PERFORMANCE_SETTINGS.enableShadows) {
+                        const gradient = ctx.createRadialGradient(this.x - 5 * (canvas.width / 800), this.y - 5 * (canvas.height / 600), 2 * (canvas.width / 800), this.x, this.y, this.radius);
+                        gradient.addColorStop(0, '#ff3333');
+                        gradient.addColorStop(1, '#cc0000');
+                        ctx.fillStyle = gradient;
+                        ctx.shadowColor = (this.glowTime > 0 || superParachuteTimer > 0) ? '#00ffcc' : '#ff3333';
+                        ctx.shadowBlur = (this.glowTime > 0 || superParachuteTimer > 0) ? 15 : 10;
+                    } else {
+                        ctx.fillStyle = '#ff3333';
+                    }
                     ctx.fill();
-                    ctx.shadowBlur = 0;
+                    if (PERFORMANCE_SETTINGS.enableShadows) {
+                        ctx.shadowBlur = 0;
+                    }
                     if (this.glowTime > 0) this.glowTime--;
 
                     if (this.hasParachute) {
                         ctx.beginPath();
                         ctx.arc(drawX, drawY - this.radius - 5 * (canvas.height / 600), this.radius, Math.PI, 0);
                         ctx.strokeStyle = superParachuteTimer > 0 ? '#00ffcc' : '#ffffff';
-                        ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
-                        ctx.shadowBlur = 5;
+                        if (PERFORMANCE_SETTINGS.enableShadows) {
+                            ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+                            ctx.shadowBlur = 5;
+                        }
                         ctx.lineWidth = 2 * (canvas.width / 800);
                         ctx.stroke();
-                        ctx.shadowBlur = 0;
-                        if (Math.random() < 0.1) {
-                            particles.push(new Particle(this.x / (canvas.width / 800), this.y / (canvas.height / 600) + this.radius / (canvas.height / 600), 'parachute'));
+                        if (PERFORMANCE_SETTINGS.enableShadows) {
+                            ctx.shadowBlur = 0;
+                        }
+                        // Reduced parachute particles for tablets
+                        if (Math.random() < (isLowPerformance ? 0.05 : 0.1)) {
+                            const particle = new Particle(this.x / (canvas.width / 800), this.y / (canvas.height / 600) + this.radius / (canvas.height / 600), 'parachute');
+                            if (particle) particles.push(particle);
                         }
                         
                         // Visual indicator when guidance is active
@@ -3357,20 +3428,7 @@
                 for (let i = 0; i < 45; i++) {
                     particles.push(new Particle(x, y, 'win'));
                 }
-                let flashTime = 60;
-                let flash = () => {
-                    try {
-                        ctx.font = `${20 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                        ctx.fillStyle = `rgba(255, 215, 0, ${flashTime / 60})`;
-                        ctx.textAlign = 'center';
-                        ctx.fillText('Win!', x * (canvas.width / 800), y * (canvas.height / 600) - 30 * (canvas.height / 600));
-                        flashTime--;
-                        if (flashTime > 0) requestAnimationFrame(flash);
-                    } catch (error) {
-                        console.error('Win explosion flash error:', error);
-                    }
-                };
-                requestAnimationFrame(flash);
+                // Removed "Win!" text display - only particle explosion remains
             } catch (error) {
                 console.error('Create win explosion error:', error);
             }
@@ -3395,10 +3453,10 @@
                 lastTapY = scaledY;
                 tapActive = true;
 
-                // Check for win zone clicks
+                // Check for win zone clicks - only bottom panel can be controlled
                 const clickThreshold = 15; // Pixels threshold for clicking near zones
                 
-                // Check bottom win zone (horizontal line)
+                // Check bottom win zone (horizontal line) - only controllable panel
                 if (Math.abs(scaledY - edgeY) < clickThreshold && 
                     scaledX >= bottomWinZone.x && 
                     scaledX <= bottomWinZone.x + bottomWinZone.width) {
@@ -3409,34 +3467,6 @@
                     bottomWinZone.playerControlled = true;
                     bottomWinZone.speed = 0; // Stop automatic movement
                     console.log('Bottom win zone clicked for dragging');
-                    return; // Don't spawn ball
-                }
-                
-                // Check left win zone (vertical line)
-                if (Math.abs(scaledX - leftWinZone.x) < clickThreshold && 
-                    scaledY >= leftWinZone.y && 
-                    scaledY <= leftWinZone.y + leftWinZone.height) {
-                    draggedZone = leftWinZone;
-                    dragStartY = scaledY;
-                    dragStartZoneY = leftWinZone.y;
-                    leftWinZone.isDragging = true;
-                    leftWinZone.playerControlled = true;
-                    leftWinZone.speed = 0; // Stop automatic movement
-                    console.log('Left win zone clicked for dragging');
-                    return; // Don't spawn ball
-                }
-                
-                // Check right win zone (vertical line)
-                if (Math.abs(scaledX - rightWinZone.x) < clickThreshold && 
-                    scaledY >= rightWinZone.y && 
-                    scaledY <= rightWinZone.y + rightWinZone.height) {
-                    draggedZone = rightWinZone;
-                    dragStartY = scaledY;
-                    dragStartZoneY = rightWinZone.y;
-                    rightWinZone.isDragging = true;
-                    rightWinZone.playerControlled = true;
-                    rightWinZone.speed = 0; // Stop automatic movement
-                    console.log('Right win zone clicked for dragging');
                     return; // Don't spawn ball
                 }
 
@@ -3545,25 +3575,26 @@
         
         // Add pointer move and up events for dragging
         function handlePointerMove(e) {
-            if (!draggedZone) return;
+            if (!draggedZone || draggedZone !== bottomWinZone) return; // Only handle bottom zone
             e.preventDefault();
             
             const rect = canvas.getBoundingClientRect();
+            const x = (e.type === 'touchmove' ? e.touches[0].clientX : e.clientX) - rect.left;
             const y = (e.type === 'touchmove' ? e.touches[0].clientY : e.clientY) - rect.top;
+            const scaledX = x * (800 / canvas.width);
             const scaledY = y * (600 / canvas.height);
             
+            const deltaX = scaledX - lastTapX;
             const deltaY = scaledY - dragStartY;
             
-            if (draggedZone === bottomWinZone) {
-                // For bottom zone, we can't move it up/down as it's fixed at bottom
-                // Instead, let's change its width based on vertical movement
-                const newWidth = Math.max(50, Math.min(200, draggedZone.baseWidth + deltaY));
-                draggedZone.width = newWidth;
-            } else {
-                // For side zones, move them up/down
-                const newY = Math.max(50, Math.min(450, dragStartZoneY + deltaY));
-                draggedZone.y = newY;
-            }
+            // For bottom zone, allow both horizontal movement and width adjustment
+            // Horizontal movement
+            const newX = Math.max(50, Math.min(750 - draggedZone.width, bottomWinZone.x + deltaX * 0.5));
+            draggedZone.x = newX;
+            
+            // Width adjustment based on vertical movement
+            const newWidth = Math.max(50, Math.min(200, draggedZone.baseWidth + deltaY));
+            draggedZone.width = newWidth;
         }
         
         function handlePointerUp(e) {
@@ -3595,19 +3626,36 @@
                     requestAnimationFrame(gameLoop);
                     return;
                 }
+                
+                // Frame rate limiting for tablets (improved to reduce flickering)
+                if (isLowPerformance) {
+                    const now = performance.now();
+                    const frameDuration = 1000 / PERFORMANCE_SETTINGS.frameRate;
+                    if (now - lastFrameTime < frameDuration) {
+                        requestAnimationFrame(gameLoop);
+                        return;
+                    }
+                    lastFrameTime = now;
+                }
+                
+                // Anti-flicker canvas clearing
+                ctx.save();
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                ctx.strokeStyle = 'rgba(128, 128, 128, 0.2)';
-                ctx.lineWidth = 1;
-                for (let i = -800; i < 800; i += 50) {
-                    ctx.beginPath();
-                    ctx.moveTo(i * (canvas.width / 800), 0);
-                    ctx.lineTo((i + 600) * (canvas.width / 800), canvas.height);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(i * (canvas.width / 800), canvas.height);
-                    ctx.lineTo((i + 600) * (canvas.width / 800), 0);
-                    ctx.stroke();
+                // Optimized background grid for performance
+                if (PERFORMANCE_SETTINGS.enableComplexEffects) {
+                    ctx.strokeStyle = 'rgba(128, 128, 128, 0.2)';
+                    ctx.lineWidth = 1;
+                    for (let i = -800; i < 800; i += PERFORMANCE_SETTINGS.backgroundGridDensity) {
+                        ctx.beginPath();
+                        ctx.moveTo(i * (canvas.width / 800), 0);
+                        ctx.lineTo((i + 600) * (canvas.width / 800), canvas.height);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(i * (canvas.width / 800), canvas.height);
+                        ctx.lineTo((i + 600) * (canvas.width / 800), 0);
+                        ctx.stroke();
+                    }
                 }
 
                 const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -3615,14 +3663,16 @@
                 gradient.addColorStop(1, '#1a0033');
                 ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                console.log('Background drawn');
 
                 if (score >= lastScoreMilestone + 750) {
                     coinCount += 50;
                     lastScoreMilestone = Math.floor(score / 750) * 750;
                     bonusFlashTime = 60;
-                    for (let i = 0; i < 15; i++) {
-                        particles.push(new Particle(canvas.width / 2 / (canvas.width / 800), 40, 'bonus'));
+                    // Reduced bonus particles for tablets
+                    const bonusParticleCount = isLowPerformance ? 5 : 15;
+                    for (let i = 0; i < bonusParticleCount; i++) {
+                        const particle = new Particle(canvas.width / 2 / (canvas.width / 800), 40, 'bonus');
+                        if (particle) particles.push(particle);
                     }
                     playSound(100, 'sawtooth', 1.2, 0.6); // Boom sound for score milestone bonus
                     console.log('Awarded 50 balls at score:', lastScoreMilestone);
@@ -3654,9 +3704,11 @@
                         lastFireTime = currentTime; // Reset timer
                         console.log(`Auto-fired ${ballsToFire} balls after 30 seconds of inactivity (player had ${coinCount + ballsToFire} balls)`);
                         
-                        // Add visual feedback
-                        for (let i = 0; i < 20; i++) {
-                            particles.push(new Particle(canvas.width / 2 / (canvas.width / 800), 40, 'bonus'));
+                        // Add visual feedback (reduced for tablets)
+                        const autoFireParticleCount = isLowPerformance ? 8 : 20;
+                        for (let i = 0; i < autoFireParticleCount; i++) {
+                            const particle = new Particle(canvas.width / 2 / (canvas.width / 800), 40, 'bonus');
+                            if (particle) particles.push(particle);
                         }
                         playSound(200, 'sawtooth', 0.5, 0.4); // Auto-fire sound
                     } else {
@@ -3733,9 +3785,6 @@
                 }
 
                 // Update and draw blue bombs
-                if (blueBombs.length > 0) {
-                    console.log('Updating', blueBombs.length, 'bombs');
-                }
                 blueBombs = blueBombs.filter(bomb => {
                     if (bomb.update()) {
                         bomb.draw();
@@ -3772,7 +3821,6 @@
                 if (multiplierTimer > 0) multiplierTimer--;
                 if (coinMagnetTimer > 0) coinMagnetTimer--;
                 if (superParachuteTimer > 0) superParachuteTimer--;
-                console.log('Power-ups updated');
 
                 if (coinCount <= 0) {
                     pusher.width = 0;
@@ -3782,7 +3830,6 @@
                 if (pusher.width > 0) {
                     ctx.fillStyle = '#8b0000';
                     ctx.fillRect(pusher.x * (canvas.width / 800), pusher.y * (canvas.height / 600), pusher.width * (canvas.width / 800), pusher.height * (canvas.height / 600));
-                    console.log('Pusher drawn');
                 }
 
                 // Pusher movement with improved boundary checking
@@ -3896,11 +3943,9 @@
                 
                 coins = coins.filter(coin => !coin.update());
                 coins.forEach(coin => coin.draw());
-                console.log('Coins updated and drawn');
 
                 particles = particles.filter(particle => !particle.update()).slice(-100);
                 particles.forEach(particle => particle.draw());
-                console.log('Particles updated and drawn');
 
                 if (Math.random() < 0.01 && obstacles.length < 3) {
                                     // Randomly choose between red and blue obstacles
@@ -3914,7 +3959,6 @@
                     obstacle.update();
                     obstacle.draw();
                 });
-                console.log('Obstacles updated and drawn');
 
                 // Regular score display
                 ctx.font = `${16 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
@@ -3927,43 +3971,42 @@
                 ctx.fillText(`Lost Balls: ${lostBalls}`, canvas.width / 2, 70 * (canvas.height / 600));
                 if (bonusFlashTime > 0) {
                     ctx.font = `${24 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(255, 255, 0, ${bonusFlashTime / 60})`;
+                    ctx.fillStyle = `rgba(255, 255, 0, ${Math.max(0.4, bonusFlashTime / 60)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('+50 Balls!', canvas.width / 2, 20 * (canvas.height / 600));
                     bonusFlashTime--;
                 }
                 if (parachuteFlashTime > 0) {
                     ctx.font = `${20 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(255, 255, 255, ${parachuteFlashTime / 30})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.4, parachuteFlashTime / 30)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('Parachute Active!', canvas.width / 2, 130 * (canvas.height / 600));
                     parachuteFlashTime--;
                 }
                 ctx.shadowBlur = 0;
                 let textY = 160;
                 if (magnetActive) {
-                    const scale = 1 + Math.sin(magnetTimer / 10) * 0.1;
+                    const scale = 1 + Math.sin(magnetTimer / 20) * 0.05; // Reduced scaling frequency and intensity
                     ctx.font = `${24 * scale * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(0, 255, 204, ${magnetTimer / 300})`;
+                    ctx.fillStyle = `rgba(0, 255, 204, ${Math.max(0.3, magnetTimer / 300)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('Magnet Active!', canvas.width / 2, textY * (canvas.height / 600));
                     textY += 30;
                 }
                 if (multiplierTimer > 0) {
                     ctx.font = `${20 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(255, 0, 0, ${multiplierTimer / 600})`;
+                    ctx.fillStyle = `rgba(255, 0, 0, ${Math.max(0.3, multiplierTimer / 600)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('2x Multiplier!', canvas.width / 2, textY * (canvas.height / 600));
                     textY += 30;
                 }
                 if (coinMagnetTimer > 0) {
                     ctx.font = `${20 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(0, 183, 235, ${coinMagnetTimer / 300})`;
+                    ctx.fillStyle = `rgba(0, 183, 235, ${Math.max(0.3, coinMagnetTimer / 300)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('Coin Magnet!', canvas.width / 2, textY * (canvas.height / 600));
                     textY += 30;
                 }
                 if (superParachuteTimer > 0) {
                     ctx.font = `${20 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
-                    ctx.fillStyle = `rgba(0, 255, 204, ${superParachuteTimer / 600})`;
+                    ctx.fillStyle = `rgba(0, 255, 204, ${Math.max(0.3, superParachuteTimer / 600)})`; // Minimum opacity to reduce flicker
                     ctx.fillText('Super Parachute!', canvas.width / 2, textY * (canvas.height / 600));
                 }
-                console.log('Text drawn');
 
                 // Dynamic win zone sizing based on hits
                 // Bottom win zone
@@ -4138,7 +4181,6 @@
                 ctx.lineTo(rightWinZone.x * (canvas.width / 800), (rightWinZone.y + rightWinZone.height) * (canvas.height / 600));
                 ctx.stroke();
                 ctx.shadowBlur = 0;
-                console.log('Win zones drawn');
 
 
                 
@@ -4149,7 +4191,7 @@
                     }, 100); // Keep active for 100ms for responsive guidance
                 }
 
-                console.log('Game loop completed');
+                ctx.restore();
                 requestAnimationFrame(gameLoop);
             } catch (error) {
                 console.error('Game loop error:', error);
