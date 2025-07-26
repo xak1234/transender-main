@@ -7,15 +7,15 @@ service cloud.firestore {
       // Allow reading leaderboard data (public)
       allow read: if true;
       
-      // Only allow authenticated users to write scores
-      allow create: if request.auth != null 
-        && request.resource.data.username is string
+      // Allow anonymous writes for score submission (no auth required)
+      allow create: if request.resource.data.username is string
         && request.resource.data.score is number
         && request.resource.data.score > 0
         && request.resource.data.username.size() > 0
-        && request.resource.data.username.size() <= 50;
+        && request.resource.data.username.size() <= 50
+        && request.resource.data.timestamp is timestamp;
       
-      // Allow updates only by the original user or admin
+      // Allow updates only by the original user or admin (if authenticated)
       allow update: if request.auth != null 
         && (request.auth.uid == resource.data.userId || request.auth.token.admin == true);
       

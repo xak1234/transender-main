@@ -525,9 +525,9 @@
             border-radius: 5px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow: visible;
+            line-height: 1.4;
         }
         #nameInputSection {
             margin-bottom: 20px;
@@ -699,6 +699,47 @@
             #introWorstPlayerScore {
                 font-size: 10px;
             }
+            
+            /* Mobile-specific styling for game over screen */
+            #gameOverScreen {
+                width: 95%;
+                max-width: 400px;
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            #gameOverScreen h1 {
+                font-size: 28px;
+                margin-bottom: 15px;
+            }
+            
+            #gameOverScreen h2 {
+                font-size: 22px;
+                margin-bottom: 15px;
+            }
+            
+            #gameOverScreen li {
+                font-size: 14px;
+                margin: 6px 0;
+                padding: 4px 8px;
+                line-height: 1.3;
+            }
+            
+            #gameOverScreen input {
+                font-size: 16px;
+                padding: 6px;
+                margin-bottom: 15px;
+            }
+            
+            #usernameInput {
+                width: 180px;
+            }
+            
+            #restartButton {
+                font-size: 18px;
+                padding: 8px 16px;
+                margin-top: 10px;
+            }
         }
 
         /* Extra small mobile devices */
@@ -733,6 +774,83 @@
             #pressAnyKeyPrompt {
                 top: 50%;
                 font-size: 20px;
+            }
+            
+            /* Extra small mobile game over screen */
+            #gameOverScreen {
+                width: 98%;
+                max-width: 350px;
+                padding: 15px;
+                margin: 5px;
+            }
+            
+            #gameOverScreen h1 {
+                font-size: 24px;
+                margin-bottom: 10px;
+            }
+            
+            #gameOverScreen h2 {
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+            
+            #gameOverScreen li {
+                font-size: 12px;
+                margin: 4px 0;
+                padding: 3px 6px;
+                line-height: 1.2;
+            }
+            
+            #gameOverScreen ul {
+                margin-bottom: 15px;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            
+            #restartButton {
+                font-size: 16px;
+                padding: 10px 20px;
+                margin-top: 15px;
+                min-height: 44px; /* Ensure touch target is large enough */
+            }
+        }
+
+        /* Very small mobile devices */
+        @media (max-width: 360px) {
+            #gameOverScreen {
+                width: 100%;
+                max-width: 320px;
+                padding: 10px;
+                margin: 2px;
+            }
+            
+            #gameOverScreen h1 {
+                font-size: 20px;
+                margin-bottom: 8px;
+            }
+            
+            #gameOverScreen h2 {
+                font-size: 16px;
+                margin-bottom: 8px;
+            }
+            
+            #gameOverScreen li {
+                font-size: 11px;
+                margin: 3px 0;
+                padding: 2px 4px;
+                line-height: 1.1;
+            }
+            
+            #gameOverScreen ul {
+                max-height: 150px;
+                margin-bottom: 10px;
+            }
+            
+            #restartButton {
+                font-size: 14px;
+                padding: 12px 24px;
+                margin-top: 20px;
+                min-height: 48px;
             }
         }
 
@@ -854,6 +972,7 @@
             <p>Use Parachutes and Turbo to move</p>
             <p>Use Parachutes and Magnetic Power!</p>
             <p>Then using the Super Magnet, powerups</p>
+            <p>Control the moving panels for extra points</p>
             <p>Become Number 1</p>
         </div>
         
@@ -978,6 +1097,20 @@
                             console.error('❌ Firebase connection test failed:', error);
                         }
                     }, 2000);
+                    
+                    // Additional connection test with timeout
+                    setTimeout(async () => {
+                        try {
+                            const testPromise = db.collection('leaderboard').limit(1).get();
+                            const timeoutPromise = new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Firebase connection timeout')), 5000)
+                            );
+                            await Promise.race([testPromise, timeoutPromise]);
+                            console.log('✅ Firebase connection test with timeout successful');
+                        } catch (error) {
+                            console.error('❌ Firebase connection test with timeout failed:', error);
+                        }
+                    }, 5000);
                 });
                 
             } catch (error) {
@@ -2352,7 +2485,11 @@
                         li.style.textShadow = '0 0 10px rgba(255, 215, 0, 0.8)';
                         const rank = (index + 1).toString().padStart(2, ' ');
                         const score = entry.score.toString().padStart(6, ' ');
-                        li.textContent = `🏆 Rank ${rank}: ${entry.username.padEnd(15)} - ${score}`;
+                        
+                        // Format date
+                        const dateStr = formatScoreDate(entry.timestamp);
+                        
+                        li.innerHTML = `🏆 Rank ${rank}: ${entry.username.padEnd(15)} - ${score}<br><span style="font-size: 10px; color: #ccc; font-weight: normal;">${dateStr}</span>`;
                         globalHighScoreList.appendChild(li);
                     });
                     
@@ -2389,7 +2526,11 @@
                             const rank = 5 + index; // Players 5, 6, 7, 8
                             const rankStr = rank.toString().padStart(2, ' ');
                             const score = entry.score.toString().padStart(6, ' ');
-                            li.textContent = `💚 Rank ${rankStr}: ${entry.username.padEnd(15)} - ${score}`;
+                            
+                            // Format date
+                            const dateStr = formatScoreDate(entry.timestamp);
+                            
+                            li.innerHTML = `💚 Rank ${rankStr}: ${entry.username.padEnd(15)} - ${score}<br><span style="font-size: 10px; color: #ccc; font-weight: normal;">${dateStr}</span>`;
                             globalHighScoreList.appendChild(li);
                         });
                     }
@@ -2422,14 +2563,22 @@
                                         }
                                         
                                         // Save score to Firebase
-                                        await db.collection('leaderboard').add({
+                                        const scoreData = {
                                             username: username,
                                             score: score,
                                             timestamp: new Date(),
                                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                        });
+                                        };
                                         
+                                        console.log('Attempting to save score:', scoreData);
+                                        const docRef = await db.collection('leaderboard').add(scoreData);
+                                        console.log('Score saved to Firebase successfully. Document ID:', docRef.id);
                                         console.log('Score saved to Firebase:', score, username);
+                                        
+                                        // Show success message
+                                        const nameInputSection = document.getElementById('nameInputSection');
+                                        nameInputSection.innerHTML = '<p style="color: #00ff00; font-size: 16px;">✅ Score saved successfully!</p>';
+                                        
                                         // Update the leaderboard display
                                         await loadTopPlayer();
                                         await displayHighScores();
@@ -2500,6 +2649,75 @@
         }
 
         restartButton.addEventListener('click', restartGame);
+
+        // Helper function to format dates consistently
+        function formatScoreDate(timestamp) {
+            try {
+                const date = timestamp ? new Date(timestamp.toDate ? timestamp.toDate() : timestamp) : new Date();
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return 'Unknown';
+            }
+        }
+
+        // Debug function to test date formatting (can be called from console)
+        window.testDateFormatting = function() {
+            console.log('🧪 Testing date formatting...');
+            const testDates = [
+                new Date(),
+                { toDate: () => new Date() },
+                null,
+                undefined
+            ];
+            
+            testDates.forEach((date, index) => {
+                const formatted = formatScoreDate(date);
+                console.log(`Test ${index + 1}:`, date, '→', formatted);
+            });
+        };
+
+        // Debug function to test Firebase score saving (can be called from console)
+        window.testFirebaseScore = async function() {
+            try {
+                if (!db) {
+                    console.error('❌ Firebase not initialized');
+                    return false;
+                }
+                
+                console.log('🧪 Testing Firebase score saving...');
+                const testScore = {
+                    username: 'TEST_USER_' + Date.now(),
+                    score: Math.floor(Math.random() * 1000) + 100,
+                    timestamp: new Date(),
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                const docRef = await db.collection('leaderboard').add(testScore);
+                console.log('✅ Test score saved successfully! Document ID:', docRef.id);
+                console.log('📊 Test score data:', testScore);
+                
+                // Clean up test score after 1 minute
+                setTimeout(async () => {
+                    try {
+                        await docRef.delete();
+                        console.log('🧹 Test score cleaned up');
+                    } catch (error) {
+                        console.error('❌ Failed to clean up test score:', error);
+                    }
+                }, 60000);
+                
+                return true;
+            } catch (error) {
+                console.error('❌ Test score saving failed:', error);
+                return false;
+            }
+        };
 
         // PowerUp class
         class PowerUp {
