@@ -1253,6 +1253,8 @@
         let lastFrameTime = 0;
         const starCount = 150;
         let stars = [];
+        const galaxyCount = 3;
+        let galaxies = [];
         
         // Win zone drag tracking
         let draggedZone = null;
@@ -2270,8 +2272,36 @@
             }
         }
 
+        function initGalaxies() {
+            galaxies = [];
+            for (let i = 0; i < galaxyCount; i++) {
+                galaxies.push({
+                    x: Math.random() * starCanvas.width,
+                    y: Math.random() * starCanvas.height,
+                    radius: Math.random() * 40 + 30,
+                    angle: Math.random() * Math.PI * 2,
+                    rotationSpeed: Math.random() * 0.002 + 0.001
+                });
+            }
+        }
+
+        function drawGalaxies() {
+            galaxies.forEach(galaxy => {
+                galaxy.angle += galaxy.rotationSpeed;
+                const arms = 4;
+                for (let a = 0; a < arms; a++) {
+                    for (let r = 0; r < galaxy.radius; r += 1.5) {
+                        const theta = r * 0.15 + galaxy.angle + a * (Math.PI * 2 / arms);
+                        const x = galaxy.x + r * Math.cos(theta);
+                        const y = galaxy.y + r * Math.sin(theta);
+                        starCtx.fillStyle = `rgba(255,255,255,${1 - r / galaxy.radius})`;
+                        starCtx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+        }
+
         function drawStars() {
-            starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
             starCtx.fillStyle = '#ffffff';
             stars.forEach(star => {
                 star.x += star.vx;
@@ -2287,6 +2317,8 @@
         }
 
         function starLoop() {
+            starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+            drawGalaxies();
             drawStars();
             requestAnimationFrame(starLoop);
         }
@@ -2330,6 +2362,7 @@
                 starCanvas.style.width = `${width}px`;
                 starCanvas.style.height = `${height}px`;
                 initStars();
+                initGalaxies();
                 console.log('Canvas resized:', width, height, 'Mobile:', isMobile);
             } catch (error) {
                 console.error('Resize canvas error:', error);
@@ -2337,6 +2370,7 @@
         }
         resizeCanvas();
         initStars();
+        initGalaxies();
         starLoop();
         window.addEventListener('resize', resizeCanvas);
 
