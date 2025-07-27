@@ -476,6 +476,12 @@
             100% { transform: scale(1); }
         }
 
+        /* Container to hold game canvas and star overlays */
+        #gameContainer {
+            position: relative;
+            display: inline-block;
+        }
+
         #starCanvas {
             position: absolute;
             top: 0;
@@ -1046,9 +1052,11 @@
         <span id="ballsLeftDisplay">Balls Left: 0</span>
         <span id="lostBallsDisplay">Lost Balls: 0</span>
     </div>
-    <canvas id="starCanvas"></canvas>
-    <canvas id="gameCanvas"></canvas>
-    <canvas id="starCanvasTop"></canvas>
+    <div id="gameContainer">
+        <canvas id="starCanvas"></canvas>
+        <canvas id="gameCanvas"></canvas>
+        <canvas id="starCanvasTop"></canvas>
+    </div>
     
     <!-- Control Icons -->
     <div id="controlIcons">
@@ -1192,6 +1200,7 @@
         const starCtxTop = starCanvasTop.getContext('2d');
         const starContexts = [starCtx, starCtxTop];
         const canvas = document.getElementById('gameCanvas');
+        const gameContainer = document.getElementById('gameContainer');
         const ctx = canvas ? canvas.getContext('2d') : null;
         if (!canvas || !ctx) {
             console.error('Canvas or context not found');
@@ -2393,6 +2402,10 @@
                 starCanvasTop.height = height;
                 starCanvasTop.style.width = `${width}px`;
                 starCanvasTop.style.height = `${height}px`;
+                if (gameContainer) {
+                    gameContainer.style.width = `${width}px`;
+                    gameContainer.style.height = `${height}px`;
+                }
                 initStars();
                 initGalaxies();
                 console.log('Canvas resized:', width, height, 'Mobile:', isMobile);
