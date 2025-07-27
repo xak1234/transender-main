@@ -488,11 +488,13 @@
 
         #scoreBoard {
             position: absolute;
-            top: 10px;
+            top: 70px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             gap: 20px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
             font-family: 'Orbitron', sans-serif;
             font-size: 18px;
             color: #fff;
@@ -502,11 +504,21 @@
             z-index: 1001;
         }
 
+        @keyframes flashRed {
+            0%, 100% { color: #ff0000; }
+            50% { color: #ffffff; }
+        }
+
+        .low-balls {
+            animation: flashRed 1s step-start infinite;
+        }
+
         @media (max-width: 480px) {
             #scoreBoard {
                 font-size: 14px;
                 gap: 10px;
                 padding: 4px 8px;
+                top: 60px;
             }
         }
 
@@ -4269,6 +4281,11 @@
                 scoreDisplay.textContent = `Score: ${score}`;
                 ballsLeftDisplay.textContent = `Balls Left: ${coinCount}`;
                 lostBallsDisplay.textContent = `Lost Balls: ${lostBalls}`;
+                if (coinCount <= 15) {
+                    ballsLeftDisplay.classList.add('low-balls');
+                } else {
+                    ballsLeftDisplay.classList.remove('low-balls');
+                }
                 if (bonusFlashTime > 0) {
                     ctx.font = `${24 * (canvas.width / 800)}px 'Orbitron', sans-serif`;
                     ctx.fillStyle = `rgba(255, 255, 0, ${Math.max(0.4, bonusFlashTime / 60)})`; // Minimum opacity to reduce flicker
