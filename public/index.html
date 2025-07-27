@@ -486,6 +486,16 @@
             pointer-events: none;
         }
 
+        #starCanvasTop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 999;
+            pointer-events: none;
+        }
+
         #scoreBoard {
             position: absolute;
             top: 70px;
@@ -1038,6 +1048,7 @@
     </div>
     <canvas id="starCanvas"></canvas>
     <canvas id="gameCanvas"></canvas>
+    <canvas id="starCanvasTop"></canvas>
     
     <!-- Control Icons -->
     <div id="controlIcons">
@@ -1176,7 +1187,10 @@
 
 
         const starCanvas = document.getElementById('starCanvas');
+        const starCanvasTop = document.getElementById('starCanvasTop');
         const starCtx = starCanvas.getContext('2d');
+        const starCtxTop = starCanvasTop.getContext('2d');
+        const starContexts = [starCtx, starCtxTop];
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas ? canvas.getContext('2d') : null;
         if (!canvas || !ctx) {
@@ -1194,10 +1208,10 @@
         const leaderboardList = document.getElementById('leaderboardList');
         const startButton = document.getElementById('startButton');
 
-        // Verify single canvas element
-        const canvases = document.querySelectorAll('#gameCanvas, #starCanvas');
-        if (canvases.length < 2) {
-            console.warn('Expected two canvas elements for starfield and game');
+        // Verify canvas elements
+        const canvases = document.querySelectorAll('#gameCanvas, #starCanvas, #starCanvasTop');
+        if (canvases.length < 3) {
+            console.warn('Expected three canvas elements for starfield and game');
         }
 
         const gameOverScreen = document.getElementById('gameOverScreen');
@@ -2287,7 +2301,9 @@
         }
 
         function drawStars() {
-            starCtx.fillStyle = '#ffffff';
+            starContexts.forEach(ctx => {
+                ctx.fillStyle = '#ffffff';
+            });
             stars.forEach(star => {
                 star.x += star.vx;
                 star.y += star.vy;
@@ -2295,35 +2311,41 @@
                 if (star.x > starCanvas.width) star.x = 0;
                 if (star.y < 0) star.y = starCanvas.height;
                 if (star.y > starCanvas.height) star.y = 0;
-                starCtx.beginPath();
-                starCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-                starCtx.fill();
+                starContexts.forEach(ctx => {
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
             });
         }
 
         function drawGalaxies() {
-            starCtx.strokeStyle = 'rgba(255,255,255,0.3)';
-            starCtx.lineWidth = 0.5;
+            starContexts.forEach(ctx => {
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 0.5;
+            });
             galaxies.forEach(galaxy => {
                 galaxy.angle += galaxy.speed;
                 const maxAngle = Math.PI * 4;
-                starCtx.beginPath();
+                starContexts.forEach(ctx => ctx.beginPath());
                 for (let a = 0; a <= maxAngle; a += 0.1) {
                     const r = galaxy.radius * (a / maxAngle);
                     const x = galaxy.x + r * Math.cos(a + galaxy.angle);
                     const y = galaxy.y + r * Math.sin(a + galaxy.angle);
-                    if (a === 0) {
-                        starCtx.moveTo(x, y);
-                    } else {
-                        starCtx.lineTo(x, y);
-                    }
+                    starContexts.forEach((ctx, index) => {
+                        if (a === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    });
                 }
-                starCtx.stroke();
+                starContexts.forEach(ctx => ctx.stroke());
             });
         }
 
         function starLoop() {
-            starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+            starContexts.forEach(ctx => ctx.clearRect(0, 0, starCanvas.width, starCanvas.height));
             drawGalaxies();
             drawStars();
             requestAnimationFrame(starLoop);
@@ -2367,6 +2389,10 @@
                 starCanvas.height = height;
                 starCanvas.style.width = `${width}px`;
                 starCanvas.style.height = `${height}px`;
+                starCanvasTop.width = width;
+                starCanvasTop.height = height;
+                starCanvasTop.style.width = `${width}px`;
+                starCanvasTop.style.height = `${height}px`;
                 initStars();
                 initGalaxies();
                 console.log('Canvas resized:', width, height, 'Mobile:', isMobile);
