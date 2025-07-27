@@ -40,7 +40,7 @@
         canvas {
             display: block;
             margin: 0; /* Removed auto margins to maximize space */
-            background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('backs.jpg') center center/cover no-repeat;
+            background: transparent;
             border-radius: 5px; /* Reduced border radius */
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); /* Reduced shadow */
             touch-action: none !important;
@@ -522,20 +522,21 @@
             }
         }
 
-        #gameOverScreen { 
-            position: absolute; 
-            background: rgba(0, 0, 0, 0.9); 
-            color: #fff; 
-            font-family: 'Orbitron', sans-serif; 
-            text-align: center; 
-            padding: 30px; 
-            border-radius: 15px; 
+        #gameOverScreen {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            text-align: center;
+            padding: 30px;
+            border-radius: 15px;
             box-shadow: 0 0 30px rgba(0, 255, 204, 0.8);
             display: none;
             width: 80%;
             max-width: 600px;
             backdrop-filter: blur(10px);
             border: 2px solid rgba(0, 255, 204, 0.3);
+            z-index: 2000;
             animation: float 3s ease-in-out infinite;
         }
         
@@ -2182,6 +2183,9 @@
 
         // Load top player when page loads (for intro screen)
         loadTopPlayer();
+        if (introScreen) {
+            introScreen.style.display = 'flex';
+        }
 
         // Event listeners for intro screen
         if (startButton) {
