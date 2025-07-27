@@ -491,7 +491,7 @@
             top: 70px;
             left: 50%;
             transform: translateX(-50%);
-            display: flex;
+            display: none;
             gap: 20px;
             flex-wrap: nowrap;
             white-space: nowrap;
@@ -1051,6 +1051,9 @@
         <div class="control-icon" id="pauseIcon" title="Pause Game">
             <i class="fas fa-pause"></i>
         </div>
+        <div class="control-icon" id="scoresIcon" title="Score Instructions">
+            <i class="fas fa-info-circle"></i>
+        </div>
     </div>
     
     <div id="gameOverScreen">
@@ -1208,6 +1211,7 @@
         const scoreDisplay = document.getElementById('scoreDisplay');
         const ballsLeftDisplay = document.getElementById('ballsLeftDisplay');
         const lostBallsDisplay = document.getElementById('lostBallsDisplay');
+        const scoreBoard = document.getElementById('scoreBoard');
         
         // Performance detection and optimization
         const isTablet = window.innerWidth >= 481 && window.innerWidth <= 1024;
@@ -1278,6 +1282,7 @@
         const exitIcon = document.getElementById('exitIcon');
         const musicIcon = document.getElementById('musicIcon');
         const pauseIcon = document.getElementById('pauseIcon');
+        const scoresIcon = document.getElementById('scoresIcon');
         
         // Auto-fire system variables
         let lastFireTime = 0;
@@ -1494,6 +1499,9 @@
                     score = 0;
                     coinCount = 100;
                     consecutiveWins = 0;
+                    if (scoreBoard) {
+                        scoreBoard.style.display = 'none';
+                    }
                     // Hide game elements
                     const gameTopPlayerDisplay = document.getElementById('gameTopPlayerDisplay');
                     if (gameTopPlayerDisplay) {
@@ -1588,6 +1596,13 @@
                         pauseIcon.title = 'Pause Game';
                         console.log('Game resumed');
                     }
+                });
+            }
+
+            // Scores Icon - Open score instructions
+            if (scoresIcon) {
+                scoresIcon.addEventListener('click', () => {
+                    window.open('/scores.html', '_blank');
                 });
             }
         }
@@ -2143,6 +2158,9 @@
         // Start game function
         function startGame() {
             introScreen.style.display = 'none';
+            if (scoreBoard) {
+                scoreBoard.style.display = 'flex';
+            }
             // Show top player display above game window
             const gameTopPlayerDisplay = document.getElementById('gameTopPlayerDisplay');
             if (gameTopPlayerDisplay) {
@@ -2222,6 +2240,14 @@
         
         // Initialize control icons
         initializeControlIcons();
+
+        // Open Franksgames website when footer logo is clicked
+        const franksgamesLogo = document.getElementById('franksgamesLogo');
+        if (franksgamesLogo) {
+            franksgamesLogo.addEventListener('click', () => {
+                window.open('https://franks.games', '_blank');
+            });
+        }
 
         // Audio context (initialized on first input)
         let audioCtx = null;
@@ -2735,6 +2761,9 @@
                 }
 
                 gameOverScreen.style.display = 'block';
+                if (scoreBoard) {
+                    scoreBoard.style.display = 'none';
+                }
                 console.log('Game over screen displayed, qualified for leaderboard:', hasQualifiedScore);
             } catch (error) {
                 console.error('Display high scores error:', error);
@@ -2774,6 +2803,9 @@
                 pusher.width = 300;
                 pusher.speed = 4;
                 gameOverScreen.style.display = 'none';
+                if (scoreBoard) {
+                    scoreBoard.style.display = 'none';
+                }
                 usernameInput.value = '';
                 
                 // Show intro screen again instead of starting game immediately
@@ -4560,10 +4592,10 @@
     </script>
     
     <!-- Footer with Franksgames 2025 -->
-    <div class="footer-text" style="
+    <div id="franksgamesLogo" class="footer-text" style="
         position: fixed;
         bottom: 2px;
-        left: 70%;
+        left: 75%;
         transform: translateX(-50%);
         font-family: 'Orbitron', sans-serif;
         font-size: 12px;
