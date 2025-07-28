@@ -478,9 +478,8 @@
 
         #starCanvas {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             z-index: 0;
@@ -1604,7 +1603,7 @@
             // Scores Icon - Open score instructions
             if (scoresIcon) {
                 scoresIcon.addEventListener('click', () => {
-                    const features = 'width=400,height=320,resizable=yes,scrollbars=yes';
+                    const features = 'width=320,height=240,resizable=yes,scrollbars=yes';
                     window.open('scores.html', 'scoresPopup', features);
                 });
             }
@@ -2395,10 +2394,10 @@
                 canvas.height = height;
                 canvas.style.width = `${width}px`;
                 canvas.style.height = `${height}px`;
-                starCanvas.width = width;
-                starCanvas.height = height;
-                starCanvas.style.width = `${width}px`;
-                starCanvas.style.height = `${height}px`;
+                starCanvas.width = window.innerWidth;
+                starCanvas.height = window.innerHeight;
+                starCanvas.style.width = '100vw';
+                starCanvas.style.height = '100vh';
                 initStars();
                 initGalaxies();
                 console.log('Canvas resized:', width, height, 'Mobile:', isMobile);
